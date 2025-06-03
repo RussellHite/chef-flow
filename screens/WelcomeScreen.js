@@ -8,7 +8,9 @@ import { commonStyles } from '../styles/common';
 
 export default function WelcomeScreen({ navigation }) {
   const handleAddRecipe = () => {
-    navigation.navigate('Recipes');
+    navigation.navigate('Recipes', {
+      screen: 'AddRecipe'
+    });
   };
 
   return (
