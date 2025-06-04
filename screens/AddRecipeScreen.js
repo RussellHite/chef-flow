@@ -31,19 +31,22 @@ export default function AddRecipeScreen({ navigation }) {
 
   const isFormValid = recipeTitle.trim().length > 0 && ingredients.trim().length > 0 && steps.trim().length > 0;
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!isFormValid) return;
 
     setIsProcessing(true);
     
     try {
-      // Combine ingredients and steps for parsing (without headers since parser removes them)
-      const combinedContent = `${ingredients}\n\n${steps}`;
-      const parsedRecipe = parseRecipe(recipeTitle, combinedContent);
+      // Parse recipe with separate ingredients and steps
+      const parsedRecipe = await parseRecipe(recipeTitle, steps, ingredients);
       
-      // Navigate to recipe editing screen with parsed data
+      // Navigate to recipe editing screen with parsed data and original content
       navigation.navigate('EditRecipe', { 
         recipe: parsedRecipe,
+        originalContent: {
+          ingredients: ingredients,
+          steps: steps
+        },
         isNew: true 
       });
     } catch (error) {

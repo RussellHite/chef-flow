@@ -42,7 +42,11 @@ export default function RecipesScreen({ navigation, route }) {
   };
 
   const handleEditRecipe = (recipe) => {
-    navigation.navigate('EditRecipe', { recipe, isNew: false });
+    navigation.navigate('EditRecipe', { 
+      recipe, 
+      originalContent: recipe.originalContent,
+      isNew: false 
+    });
   };
 
   const renderRecipeCard = ({ item: recipe }) => (

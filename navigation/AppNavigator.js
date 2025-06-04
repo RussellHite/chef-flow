@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 import WelcomeScreen from '../screens/WelcomeScreen';
 import RecipesScreen from '../screens/RecipesScreen';
+import AdminScreen from '../screens/AdminScreen';
+import IngredientListScreen from '../screens/IngredientListScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddRecipeScreen from '../screens/AddRecipeScreen';
 import EditRecipeScreen from '../screens/EditRecipeScreen';
@@ -46,6 +48,33 @@ function RecipesStack() {
   );
 }
 
+function AdminStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: colors.primary,
+        },
+        headerTintColor: colors.surface,
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+      }}
+    >
+      <Stack.Screen 
+        name="AdminHome" 
+        component={AdminScreen}
+        options={{ title: 'Admin' }}
+      />
+      <Stack.Screen 
+        name="IngredientList" 
+        component={IngredientListScreen}
+        options={{ title: 'Ingredient Database' }}
+      />
+    </Stack.Navigator>
+  );
+}
+
 function TabNavigator() {
   return (
     <Tab.Navigator
@@ -57,6 +86,8 @@ function TabNavigator() {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Recipes') {
             iconName = focused ? 'book' : 'book-outline';
+          } else if (route.name === 'Admin') {
+            iconName = focused ? 'settings' : 'settings-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -91,6 +122,11 @@ function TabNavigator() {
         name="Recipes" 
         component={RecipesStack}
         options={{ title: 'Recipes' }}
+      />
+      <Tab.Screen 
+        name="Admin" 
+        component={AdminStack}
+        options={{ title: 'Admin' }}
       />
       <Tab.Screen 
         name="Profile" 

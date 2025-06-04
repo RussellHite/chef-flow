@@ -11,26 +11,43 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
 import StepEditor from '../components/StepEditor';
+import StructuredIngredient from '../components/StructuredIngredient';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
+import { useRecipes } from '../contexts/RecipeContext';
+
+// Helper functions for ingredient parsing
+const extractAmount = (ingredientText) => {
+  const match = ingredientText.match(/^(\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?(?:\s*\([^)]+\))?)\s*(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|whole|medium|large|small|cans?|packages?|boxes?|containers?)/i);
+  return match ? `${match[1]} ${match[2]}` : '';
+};
+
+const extractName = (ingredientText) => {
+  const match = ingredientText.match(/^(\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?(?:\s*\([^)]+\))?)\s*(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|whole|medium|large|small|cans?|packages?|boxes?|containers?)\s+(.+)/i);
+  return match ? match[3] : ingredientText;
+};
 
 export default function EditRecipeScreen({ route, navigation }) {
-  const { recipe, isNew } = route.params;
+  const { recipe, originalContent, isNew, fromHome } = route.params;
+  const { updateRecipe } = useRecipes();
   const [editedRecipe, setEditedRecipe] = useState(recipe);
+  const [ingredients, setIngredients] = useState(
+    recipe.ingredients ? recipe.ingredients : []
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('flow');
 
   useEffect(() => {
     navigation.setOptions({
       title: isNew ? 'Review Recipe' : 'Edit Recipe',
-      headerLeft: () => (
+      headerLeft: fromHome ? undefined : () => (
         <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
           <Ionicons name="close" size={24} color={colors.surface} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, isNew]);
+  }, [navigation, isNew, fromHome]);
 
   const handleStepUpdate = (stepId, updatedStep) => {
     setEditedRecipe(prev => ({
@@ -97,11 +114,13 @@ export default function EditRecipeScreen({ route, navigation }) {
       await saveRecipe(editedRecipe, isNew);
       
       if (isNew) {
-        navigation.navigate('Recipes', { 
-          newRecipe: editedRecipe,
+        navigation.navigate('Home', { 
+          newRecipe: { ...editedRecipe, originalContent },
           showSuccess: true 
         });
       } else {
+        // Update existing recipe in context
+        updateRecipe({ ...editedRecipe, originalContent });
         navigation.goBack();
       }
     } catch (error) {
@@ -137,6 +156,74 @@ export default function EditRecipeScreen({ route, navigation }) {
       }
       return total;
     }, 0);
+  };
+
+
+  const handleIngredientEdit = (ingredient) => {
+    Alert.prompt(
+      'Edit Ingredient',
+      'Enter the full ingredient specification (e.g., "2 cups flour"):',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: async (newText) => {
+            if (newText && newText.trim()) {
+              try {
+                // Re-parse the ingredient text
+                const structured = await import('../services/ingredientServiceInstance.js')
+                  .then(module => module.default.parseIngredientText(newText.trim()));
+                
+                const updatedIngredient = {
+                  ...ingredient,
+                  originalText: newText.trim(),
+                  structured: structured,
+                  displayText: structured.isStructured 
+                    ? await import('../services/ingredientServiceInstance.js')
+                        .then(module => module.default.formatIngredientForDisplay(structured))
+                    : newText.trim()
+                };
+                
+                setIngredients(prev => 
+                  prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+                );
+              } catch (error) {
+                // Fallback to simple text update
+                const updatedIngredient = {
+                  ...ingredient,
+                  originalText: newText.trim(),
+                  structured: null,
+                  displayText: newText.trim()
+                };
+                
+                setIngredients(prev => 
+                  prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+                );
+              }
+            }
+          }
+        }
+      ],
+      'plain-text',
+      ingredient.originalText || ingredient.displayText
+    );
+  };
+
+  const handleIngredientDelete = (ingredient) => {
+    Alert.alert(
+      'Delete Ingredient',
+      'Are you sure you want to delete this ingredient?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setIngredients(prev => prev.filter(ing => ing.id !== ingredient.id));
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -177,52 +264,79 @@ export default function EditRecipeScreen({ route, navigation }) {
           </View>
 
           {activeTab === 'flow' ? (
-            <View style={styles.stepsContainer}>
-              <Text style={styles.sectionTitle}>Recipe Steps</Text>
-              <Text style={styles.sectionSubtitle}>
-                Review and customize your recipe flow. Drag to reorder steps.
-              </Text>
+            <>
+              <View style={styles.ingredientsContainer}>
+                <Text style={styles.sectionTitle}>Ingredients</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Manage your recipe ingredients
+                </Text>
+                
+                {ingredients.map((ingredient) => (
+                  <StructuredIngredient
+                    key={ingredient.id}
+                    ingredient={ingredient}
+                    onEdit={handleIngredientEdit}
+                    onDelete={handleIngredientDelete}
+                    showActions={true}
+                  />
+                ))}
+              </View>
               
-              {editedRecipe.steps.map((step, index) => (
-                <StepEditor
-                  key={step.id}
-                  step={step}
-                  index={index}
-                  onUpdate={handleStepUpdate}
-                  onDelete={handleDeleteStep}
-                  onAddAfter={handleAddStep}
-                  onReorder={handleStepReorder}
-                  isFirst={index === 0}
-                  isLast={index === editedRecipe.steps.length - 1}
-                />
-              ))}
-            </View>
+              <View style={styles.stepsContainer}>
+                <Text style={styles.sectionTitle}>Recipe Steps</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Review and customize your recipe flow. Drag to reorder steps.
+                </Text>
+                
+                {editedRecipe.steps.map((step, index) => (
+                  <StepEditor
+                    key={step.id}
+                    step={step}
+                    index={index}
+                    onUpdate={handleStepUpdate}
+                    onDelete={handleDeleteStep}
+                    onAddAfter={handleAddStep}
+                    onReorder={handleStepReorder}
+                    isFirst={index === 0}
+                    isLast={index === editedRecipe.steps.length - 1}
+                  />
+                ))}
+              </View>
+            </>
           ) : (
             <View style={styles.oldGuardContainer}>
-              <Text style={styles.sectionTitle}>Traditional Recipe</Text>
+              <Text style={styles.sectionTitle}>Original Recipe</Text>
               <Text style={styles.sectionSubtitle}>
-                Classic recipe format - ingredients and steps
+                Recipe as originally entered - unprocessed format
               </Text>
               
-              <View style={styles.oldGuardSection}>
-                <Text style={styles.oldGuardSectionTitle}>Ingredients</Text>
-                <View style={styles.oldGuardContent}>
-                  {editedRecipe.ingredients.map((ingredient, index) => (
-                    <Text key={index} style={styles.oldGuardItem}>• {ingredient}</Text>
-                  ))}
-                </View>
-              </View>
+              {originalContent ? (
+                <>
+                  <View style={styles.oldGuardSection}>
+                    <Text style={styles.oldGuardSectionTitle}>Ingredients</Text>
+                    <View style={styles.oldGuardContent}>
+                      <Text style={styles.oldGuardOriginalText}>
+                        {originalContent.ingredients || 'No ingredients provided'}
+                      </Text>
+                    </View>
+                  </View>
 
-              <View style={styles.oldGuardSection}>
-                <Text style={styles.oldGuardSectionTitle}>Instructions</Text>
+                  <View style={styles.oldGuardSection}>
+                    <Text style={styles.oldGuardSectionTitle}>Steps</Text>
+                    <View style={styles.oldGuardContent}>
+                      <Text style={styles.oldGuardOriginalText}>
+                        {originalContent.steps || 'No steps provided'}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              ) : (
                 <View style={styles.oldGuardContent}>
-                  {editedRecipe.steps.map((step, index) => (
-                    <Text key={step.id} style={styles.oldGuardStep}>
-                      {index + 1}. {step.content}
-                    </Text>
-                  ))}
+                  <Text style={styles.oldGuardItem}>
+                    Original content not available for this recipe.
+                  </Text>
                 </View>
-              </View>
+              )}
             </View>
           )}
         </View>
@@ -256,11 +370,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 20,
   },
   header: {
-    marginTop: 20,
+    marginTop: 0,
     marginBottom: 30,
   },
   title: {
@@ -314,6 +428,33 @@ const styles = StyleSheet.create({
   activeTabButtonText: {
     color: colors.surface,
   },
+  ingredientsContainer: {
+    marginBottom: 30,
+  },
+  ingredientRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  ingredientText: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+    textAlign: 'left',
+  },
+  ingredientActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: colors.background,
+  },
   stepsContainer: {
     marginBottom: 20,
   },
@@ -346,6 +487,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 12,
     lineHeight: 22,
+  },
+  oldGuardOriginalText: {
+    ...typography.body,
+    color: colors.text,
+    lineHeight: 20,
+    whiteSpace: 'pre-line',
   },
   buttonContainer: {
     flexDirection: 'row',
