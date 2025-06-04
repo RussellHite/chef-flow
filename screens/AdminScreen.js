@@ -51,6 +51,13 @@ export default function AdminScreen({ navigation }) {
         console.log('Prep methods page coming soon');
       },
     },
+    {
+      id: 'parsing-training',
+      title: 'Parsing Training',
+      description: 'View and manage ingredient parsing training data',
+      icon: 'school',
+      onPress: () => navigation.navigate('ParsingTraining'),
+    },
   ];
 
   const renderAdminCard = (page) => (

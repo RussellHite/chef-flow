@@ -70,6 +70,27 @@ export default function StepEditor({
     return 'ellipse';
   };
 
+  const splitIntoSentences = (text) => {
+    if (!text) return [];
+    
+    // Split by periods, exclamation marks, or question marks, but keep the punctuation
+    const sentences = text.split(/([.!?]+)/)
+      .reduce((acc, part, index, array) => {
+        if (index % 2 === 0) {
+          // This is the sentence content
+          const punctuation = array[index + 1] || '';
+          const sentence = (part + punctuation).trim();
+          if (sentence.length > 0) {
+            acc.push(sentence);
+          }
+        }
+        return acc;
+      }, []);
+    
+    // If no sentences were found (no punctuation), return the original text
+    return sentences.length > 0 ? sentences : [text];
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.stepNumber}>
@@ -156,7 +177,13 @@ export default function StepEditor({
           </View>
         ) : (
           <View style={styles.displayContent}>
-            <Text style={styles.stepText}>{step.content}</Text>
+            <View style={styles.sentencesContainer}>
+              {splitIntoSentences(step.content).map((sentence, index) => (
+                <Text key={index} style={styles.stepText}>
+                  {sentence}
+                </Text>
+              ))}
+            </View>
             
             {step.ingredients && step.ingredients.length > 0 && (
               <View style={styles.ingredientsContainer}>
@@ -245,6 +272,9 @@ const styles = StyleSheet.create({
   },
   displayContent: {
     marginBottom: 8,
+  },
+  sentencesContainer: {
+    gap: 6,
   },
   stepText: {
     ...typography.body,

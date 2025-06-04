@@ -8,6 +8,7 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import RecipesScreen from '../screens/RecipesScreen';
 import AdminScreen from '../screens/AdminScreen';
 import IngredientListScreen from '../screens/IngredientListScreen';
+import ParsingTrainingScreen from '../screens/ParsingTrainingScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddRecipeScreen from '../screens/AddRecipeScreen';
 import EditRecipeScreen from '../screens/EditRecipeScreen';
@@ -70,6 +71,11 @@ function AdminStack() {
         name="IngredientList" 
         component={IngredientListScreen}
         options={{ title: 'Ingredient Database' }}
+      />
+      <Stack.Screen 
+        name="ParsingTraining" 
+        component={ParsingTrainingScreen}
+        options={{ title: 'Parsing Training' }}
       />
     </Stack.Navigator>
   );

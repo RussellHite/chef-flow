@@ -12,6 +12,7 @@ import {
   INGREDIENTS, 
   UNIT_CONVERSIONS 
 } from '../data/ingredientDatabase.js';
+import TrainingDataService from './TrainingDataService.js';
 
 class EmbeddedIngredientDataSource {
   constructor() {
@@ -118,75 +119,267 @@ class EmbeddedIngredientDataSource {
 
   /**
    * Parse a free-form ingredient string into structured components
+   * Handles various patterns like:
+   * - "2 cups flour, chopped"
+   * - "large onion, diced"  
+   * - "chicken breast, 1 lb, cubed"
+   * - "2 (5 oz) cans tomatoes"
    */
   async parseIngredientText(ingredientText) {
     const text = ingredientText.trim();
     
-    // Enhanced regex to handle complex amounts like "2 (5 ounce)"
-    const regex = /^(\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?(?:\s*\([^)]+\))?)\s+(.*)/;
-    const match = text.match(regex);
+    // Check if we have training data for similar ingredients
+    const trainedResult = TrainingDataService.applyTrainingToIngredient(text);
+    if (trainedResult) {
+      // console.log('Applied training data for:', text);
+      return trainedResult;
+    }
     
-    if (!match) {
-      // No quantity found - treat as ingredient name only
-      const ingredients = await this.searchIngredients(text, 5);
-      const bestMatch = ingredients[0];
+    // Initialize result structure
+    const result = {
+      quantity: null,
+      unit: null,
+      ingredient: null,
+      preparation: null,
+      originalText: text,
+      isStructured: false
+    };
+    
+    // Split by commas to separate components
+    const parts = text.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    if (parts.length === 0) return result;
+    
+    // Patterns to identify different components
+    const quantityPattern = /^(\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?(?:\s*\([^)]+\))?)/;
+    const unitPattern = new RegExp(`\\b(${Object.keys(UNITS).join('|')}(?:s)?)\\b`, 'i');
+    const sizeDescriptors = /\b(large|medium|small|extra large|xl|lg|sm)\b/i;
+    const parentheticalSizePattern = /\(([^)]*(?:ounce|oz|gram|g|pound|lb|ml|liter|l)[^)]*)\)/gi;
+    const dividedPattern = /,?\s*divided\s*$/i;
+    
+    let remainingParts = [...parts];
+    let foundIngredientPart = null;
+    let isDivided = false;
+    let sizeInfo = null;
+    
+    // Check for "divided" indicator
+    if (dividedPattern.test(text)) {
+      isDivided = true;
+      // Remove "divided" from the text for further processing
+      const lastPart = remainingParts[remainingParts.length - 1];
+      if (dividedPattern.test(lastPart)) {
+        remainingParts[remainingParts.length - 1] = lastPart.replace(dividedPattern, '').trim();
+        if (!remainingParts[remainingParts.length - 1]) {
+          remainingParts.pop();
+        }
+      }
+    }
+    
+    // Extract parenthetical size information
+    const fullText = remainingParts.join(' ');
+    let sizeMatches = [];
+    let match;
+    while ((match = parentheticalSizePattern.exec(fullText)) !== null) {
+      sizeMatches.push(match[1]);
+    }
+    if (sizeMatches.length > 0) {
+      sizeInfo = sizeMatches.join(', ');
+      // Remove parenthetical info from parts for cleaner processing
+      remainingParts = remainingParts.map(part => 
+        part.replace(parentheticalSizePattern, '').trim()
+      ).filter(part => part.length > 0);
+    }
+    
+    // Step 1: Extract quantity and unit from any part
+    for (let i = 0; i < remainingParts.length; i++) {
+      const part = remainingParts[i];
       
-      return {
-        quantity: null,
-        unit: null,
-        ingredient: bestMatch || { id: 'custom', name: text, category: 'custom' },
-        preparation: null,
-        originalText: text,
-        isStructured: false
+      // Check for quantity + unit pattern (e.g., "2 cups", "1 lb")
+      const quantityUnitMatch = part.match(/^(\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?(?:\s*\([^)]+\))?)\s+(.+)/);
+      if (quantityUnitMatch) {
+        const [, quantityText, remainder] = quantityUnitMatch;
+        const unitMatch = remainder.match(unitPattern);
+        
+        if (unitMatch) {
+          result.quantity = this._parseQuantity(quantityText);
+          result.unit = this._findUnitByName(unitMatch[1]);
+          
+          // Remove unit from remainder to get ingredient
+          const ingredientText = remainder.replace(unitPattern, '').trim();
+          if (ingredientText) {
+            foundIngredientPart = ingredientText;
+          }
+          remainingParts.splice(i, 1);
+          break;
+        }
+      }
+      
+      // Check for standalone quantity (e.g., "2" in "chicken breast, 2 lbs")
+      const quantityMatch = part.match(quantityPattern);
+      if (quantityMatch && !result.quantity) {
+        result.quantity = this._parseQuantity(quantityMatch[1]);
+        remainingParts[i] = part.replace(quantityPattern, '').trim();
+        if (!remainingParts[i]) {
+          remainingParts.splice(i, 1);
+        }
+        break;
+      }
+      
+      // Check for standalone unit (e.g., "lbs" in "chicken, 2 lbs")
+      const unitMatch = part.match(unitPattern);
+      if (unitMatch && !result.unit) {
+        result.unit = this._findUnitByName(unitMatch[1]);
+        remainingParts[i] = part.replace(unitPattern, '').trim();
+        if (!remainingParts[i]) {
+          remainingParts.splice(i, 1);
+        }
+        break;
+      }
+    }
+    
+    // Step 2: Identify ingredient from remaining parts
+    if (!foundIngredientPart && remainingParts.length > 0) {
+      // Look for the part that best matches known ingredients
+      let bestMatch = null;
+      let bestPartIndex = 0;
+      let bestScore = 0;
+      
+      for (let i = 0; i < remainingParts.length; i++) {
+        const part = remainingParts[i];
+        
+        // Skip if this part looks like a preparation method
+        if (this._looksLikePreparation(part)) continue;
+        
+        // Search for ingredient matches
+        const ingredients = await this.searchIngredients(part, 5);
+        if (ingredients.length > 0) {
+          // Score based on how well the ingredient name matches
+          const score = this._calculateIngredientMatchScore(part, ingredients[0]);
+          if (score > bestScore) {
+            bestMatch = ingredients[0];
+            bestScore = score;
+            bestPartIndex = i;
+            foundIngredientPart = part;
+          }
+        }
+      }
+      
+      if (bestMatch) {
+        result.ingredient = bestMatch;
+        remainingParts.splice(bestPartIndex, 1);
+      } else if (remainingParts.length > 0) {
+        // Use the longest remaining part as ingredient name
+        const longestPart = remainingParts.reduce((longest, current) => 
+          current.length > longest.length ? current : longest
+        );
+        const longestIndex = remainingParts.indexOf(longestPart);
+        
+        result.ingredient = { 
+          id: 'custom', 
+          name: longestPart, 
+          category: 'custom' 
+        };
+        foundIngredientPart = longestPart;
+        remainingParts.splice(longestIndex, 1);
+      }
+    } else if (foundIngredientPart) {
+      // Find ingredient from the found part
+      const ingredients = await this.searchIngredients(foundIngredientPart, 5);
+      result.ingredient = ingredients[0] || { 
+        id: 'custom', 
+        name: foundIngredientPart, 
+        category: 'custom' 
       };
     }
     
-    const [, quantityPart, remainder] = match;
-    
-    // Parse unit and ingredient from remainder
-    const unitPattern = Object.keys(UNITS).join('|');
-    const unitRegex = new RegExp(`^(${unitPattern}s?)\\s+(.*)`, 'i');
-    const unitMatch = remainder.match(unitRegex);
-    
-    let unit = null;
-    let ingredientPart = remainder;
-    
-    if (unitMatch) {
-      const [, unitText, ingredientText] = unitMatch;
-      unit = this._findUnitByName(unitText);
-      ingredientPart = ingredientText;
+    // Step 3: Treat remaining parts as preparation/description
+    let preparationParts = [];
+    if (remainingParts.length > 0) {
+      preparationParts.push(...remainingParts);
+    }
+    if (sizeInfo) {
+      preparationParts.unshift(`(${sizeInfo})`);
     }
     
-    // Parse preparation from ingredient part
-    const parts = ingredientPart.split(',').map(p => p.trim());
-    const mainIngredientText = parts[0];
-    const preparationText = parts.slice(1).join(', ');
-    
-    // Find best matching ingredient
-    const ingredients = await this.searchIngredients(mainIngredientText, 5);
-    const bestMatch = ingredients[0] || { 
-      id: 'custom', 
-      name: mainIngredientText, 
-      category: 'custom' 
-    };
-    
-    // Find preparation method
-    let preparation = null;
-    if (preparationText) {
-      const prepMethods = await this.getPreparationMethodsForIngredient(bestMatch.id);
-      preparation = prepMethods.find(prep => 
-        preparationText.toLowerCase().includes(prep.name.toLowerCase())
-      ) || { id: 'custom', name: preparationText, requiresStep: true };
+    if (preparationParts.length > 0) {
+      const preparationText = preparationParts.join(', ');
+      
+      if (result.ingredient) {
+        const prepMethods = await this.getPreparationMethodsForIngredient(result.ingredient.id);
+        result.preparation = prepMethods.find(prep => 
+          preparationText.toLowerCase().includes(prep.name.toLowerCase())
+        ) || { id: 'custom', name: preparationText, requiresStep: this._requiresStep(preparationText) };
+      } else {
+        result.preparation = { id: 'custom', name: preparationText, requiresStep: this._requiresStep(preparationText) };
+      }
     }
     
-    return {
-      quantity: this._parseQuantity(quantityPart),
-      unit: unit,
-      ingredient: bestMatch,
-      preparation: preparation,
-      originalText: text,
-      isStructured: true
-    };
+    // Add metadata
+    result.isDivided = isDivided;
+    result.sizeInfo = sizeInfo;
+    
+    // Set as structured if we found at least an ingredient
+    result.isStructured = !!result.ingredient;
+    
+    // If no structure found, treat entire text as ingredient
+    if (!result.isStructured) {
+      const ingredients = await this.searchIngredients(text, 5);
+      result.ingredient = ingredients[0] || { id: 'custom', name: text, category: 'custom' };
+      result.isStructured = false;
+    }
+    
+    return result;
+  }
+  
+  /**
+   * Check if a text part looks like a preparation method
+   */
+  _looksLikePreparation(text) {
+    const preparationWords = [
+      'chopped', 'diced', 'sliced', 'minced', 'grated', 'shredded',
+      'peeled', 'crushed', 'julienned', 'cubed', 'halved', 'quartered',
+      'trimmed', 'cored', 'pitted', 'seeded', 'sifted', 'drained',
+      'rinsed', 'dried', 'juiced', 'fresh', 'frozen', 'canned',
+      'cooked', 'raw', 'roasted', 'grilled', 'steamed'
+    ];
+    
+    const lowerText = text.toLowerCase();
+    return preparationWords.some(word => lowerText.includes(word));
+  }
+  
+  /**
+   * Calculate how well an ingredient text matches a known ingredient
+   */
+  _calculateIngredientMatchScore(text, ingredient) {
+    const lowerText = text.toLowerCase();
+    const ingredientName = ingredient.name.toLowerCase();
+    
+    if (lowerText === ingredientName) return 100;
+    if (lowerText.includes(ingredientName) || ingredientName.includes(lowerText)) return 80;
+    
+    // Check search terms
+    for (const term of ingredient.searchTerms) {
+      const lowerTerm = term.toLowerCase();
+      if (lowerText === lowerTerm) return 90;
+      if (lowerText.includes(lowerTerm) || lowerTerm.includes(lowerText)) return 60;
+    }
+    
+    return 0;
+  }
+  
+  /**
+   * Determine if a preparation text requires a prep step
+   */
+  _requiresStep(preparationText) {
+    const actionWords = [
+      'chop', 'dice', 'slice', 'mince', 'grate', 'shred',
+      'peel', 'crush', 'julienne', 'cube', 'halve', 'quarter',
+      'trim', 'core', 'pit', 'seed', 'sift', 'drain', 'rinse', 'juice'
+    ];
+    
+    const lowerText = preparationText.toLowerCase();
+    return actionWords.some(action => 
+      lowerText.includes(action + 'ed') || lowerText.includes(action)
+    );
   }
 
   /**

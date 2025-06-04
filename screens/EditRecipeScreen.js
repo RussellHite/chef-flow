@@ -49,6 +49,14 @@ export default function EditRecipeScreen({ route, navigation }) {
     });
   }, [navigation, isNew, fromHome]);
 
+  // Sync ingredients with main recipe
+  useEffect(() => {
+    setEditedRecipe(prev => ({
+      ...prev,
+      ingredients: ingredients
+    }));
+  }, [ingredients]);
+
   const handleStepUpdate = (stepId, updatedStep) => {
     setEditedRecipe(prev => ({
       ...prev,
@@ -159,54 +167,165 @@ export default function EditRecipeScreen({ route, navigation }) {
   };
 
 
-  const handleIngredientEdit = (ingredient) => {
-    Alert.prompt(
-      'Edit Ingredient',
-      'Enter the full ingredient specification (e.g., "2 cups flour"):',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Save',
-          onPress: async (newText) => {
-            if (newText && newText.trim()) {
-              try {
-                // Re-parse the ingredient text
-                const structured = await import('../services/ingredientServiceInstance.js')
-                  .then(module => module.default.parseIngredientText(newText.trim()));
-                
-                const updatedIngredient = {
-                  ...ingredient,
-                  originalText: newText.trim(),
-                  structured: structured,
-                  displayText: structured.isStructured 
-                    ? await import('../services/ingredientServiceInstance.js')
-                        .then(module => module.default.formatIngredientForDisplay(structured))
-                    : newText.trim()
-                };
-                
-                setIngredients(prev => 
-                  prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
-                );
-              } catch (error) {
-                // Fallback to simple text update
-                const updatedIngredient = {
-                  ...ingredient,
-                  originalText: newText.trim(),
-                  structured: null,
-                  displayText: newText.trim()
-                };
-                
-                setIngredients(prev => 
-                  prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
-                );
-              }
+  const handleIngredientEdit = async (ingredient, newText) => {
+    let updatedIngredient;
+    
+    // Check if this is already a structured ingredient object (from manual training)
+    if (typeof ingredient === 'object' && ingredient.structured && newText) {
+      // This is a pre-structured ingredient from manual training
+      updatedIngredient = ingredient;
+      setIngredients(prev => 
+        prev.map(ing => ing.id === ingredient.id ? ingredient : ing)
+      );
+    } else if (newText && newText.trim()) {
+      // Original parsing logic for text-based edits
+      try {
+        // Re-parse the ingredient text
+        const structured = await import('../services/ingredientServiceInstance.js')
+          .then(module => module.default.parseIngredientText(newText.trim()));
+        
+        updatedIngredient = {
+          ...ingredient,
+          originalText: newText.trim(),
+          structured: structured,
+          displayText: structured.isStructured 
+            ? await import('../services/ingredientServiceInstance.js')
+                .then(module => module.default.formatIngredientForDisplay(structured))
+            : newText.trim()
+        };
+        
+        setIngredients(prev => 
+          prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+        );
+      } catch (error) {
+        // Fallback to simple text update
+        updatedIngredient = {
+          ...ingredient,
+          originalText: newText.trim(),
+          structured: null,
+          displayText: newText.trim()
+        };
+        
+        setIngredients(prev => 
+          prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+        );
+      }
+    }
+
+    // Update steps that reference this ingredient
+    if (updatedIngredient) {
+      updateStepsWithIngredient(ingredient, updatedIngredient);
+    }
+  };
+
+  const updateStepsWithIngredient = (originalIngredient, updatedIngredient) => {
+    const originalName = getIngredientName(originalIngredient);
+    const newDisplayText = getIngredientDisplayText(updatedIngredient);
+    
+    setEditedRecipe(prev => ({
+      ...prev,
+      steps: prev.steps.map(step => {
+        if (step.ingredients && step.ingredients.length > 0) {
+          const updatedStepIngredients = step.ingredients.map(stepIngredient => {
+            // Check if this step ingredient references the updated ingredient
+            if (isIngredientMatch(stepIngredient, originalName)) {
+              return newDisplayText;
             }
-          }
+            return stepIngredient;
+          });
+          
+          return {
+            ...step,
+            ingredients: updatedStepIngredients
+          };
         }
-      ],
-      'plain-text',
-      ingredient.originalText || ingredient.displayText
+        return step;
+      })
+    }));
+  };
+
+  const getIngredientName = (ingredient) => {
+    if (ingredient.structured && ingredient.structured.ingredient) {
+      return ingredient.structured.ingredient.name;
+    }
+    if (ingredient.displayText) {
+      return ingredient.displayText;
+    }
+    if (ingredient.originalText) {
+      return ingredient.originalText;
+    }
+    return '';
+  };
+
+  const getIngredientDisplayText = (ingredient) => {
+    if (ingredient.structured && ingredient.structured.isStructured) {
+      const { quantity, unit, ingredient: baseIngredient, preparation } = ingredient.structured;
+      let display = '';
+      
+      if (quantity !== null) {
+        display += formatQuantity(quantity) + ' ';
+      }
+      if (unit) {
+        const unitName = quantity === 1 ? unit.name : unit.plural;
+        display += unitName + ' ';
+      }
+      if (baseIngredient) {
+        display += baseIngredient.name;
+      }
+      if (preparation) {
+        display += ', ' + preparation.name;
+      }
+      
+      return display.trim();
+    }
+    
+    return ingredient.displayText || ingredient.originalText || '';
+  };
+
+  const formatQuantity = (quantity) => {
+    // Common cooking fractions
+    const fractions = {
+      0.125: '1/8',
+      0.25: '1/4',
+      0.333: '1/3',
+      0.5: '1/2',
+      0.667: '2/3',
+      0.75: '3/4'
+    };
+    
+    const whole = Math.floor(quantity);
+    const decimal = quantity - whole;
+    
+    // Check if decimal part matches a common fraction
+    for (const [value, fraction] of Object.entries(fractions)) {
+      if (Math.abs(decimal - parseFloat(value)) < 0.02) {
+        return whole > 0 ? `${whole} ${fraction}` : fraction;
+      }
+    }
+    
+    // Return as decimal or whole number
+    return quantity % 1 === 0 ? quantity.toString() : quantity.toFixed(2);
+  };
+
+  const isIngredientMatch = (stepIngredient, ingredientName) => {
+    const stepIngredientLower = stepIngredient.toLowerCase();
+    const ingredientNameLower = ingredientName.toLowerCase();
+    
+    // Direct match
+    if (stepIngredientLower.includes(ingredientNameLower) || ingredientNameLower.includes(stepIngredientLower)) {
+      return true;
+    }
+    
+    // Word-by-word matching for compound ingredients
+    const stepWords = stepIngredientLower.split(/\s+/);
+    const ingredientWords = ingredientNameLower.split(/\s+/);
+    
+    // Check if most ingredient words are present in step ingredient
+    const matchingWords = ingredientWords.filter(word => 
+      stepWords.some(stepWord => stepWord.includes(word) || word.includes(stepWord))
     );
+    
+    return matchingWords.length >= Math.min(2, ingredientWords.length);
   };
 
   const handleIngredientDelete = (ingredient) => {
@@ -220,10 +339,34 @@ export default function EditRecipeScreen({ route, navigation }) {
           style: 'destructive',
           onPress: () => {
             setIngredients(prev => prev.filter(ing => ing.id !== ingredient.id));
+            
+            // Remove ingredient from steps
+            removeIngredientFromSteps(ingredient);
           },
         },
       ]
     );
+  };
+
+  const removeIngredientFromSteps = (deletedIngredient) => {
+    const ingredientName = getIngredientName(deletedIngredient);
+    
+    setEditedRecipe(prev => ({
+      ...prev,
+      steps: prev.steps.map(step => {
+        if (step.ingredients && step.ingredients.length > 0) {
+          const filteredIngredients = step.ingredients.filter(stepIngredient => 
+            !isIngredientMatch(stepIngredient, ingredientName)
+          );
+          
+          return {
+            ...step,
+            ingredients: filteredIngredients
+          };
+        }
+        return step;
+      })
+    }));
   };
 
   return (
