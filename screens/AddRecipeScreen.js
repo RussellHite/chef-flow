@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,22 +14,32 @@ import Button from '../components/Button';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
+import { parseRecipe } from '../utils/recipeParser';
 
 export default function AddRecipeScreen({ navigation }) {
   const [recipeTitle, setRecipeTitle] = useState('');
-  const [recipeContent, setRecipeContent] = useState('');
+  const [ingredients, setIngredients] = useState('');
+  const [steps, setSteps] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const isFormValid = recipeTitle.trim().length > 0 && recipeContent.trim().length > 0;
+  useEffect(() => {
+    navigation.setOptions({
+      title: 'Add New Recipe',
+    });
+  }, [navigation]);
 
-  const handleNext = async () => {
+
+  const isFormValid = recipeTitle.trim().length > 0 && ingredients.trim().length > 0 && steps.trim().length > 0;
+
+  const handleNext = () => {
     if (!isFormValid) return;
 
     setIsProcessing(true);
     
     try {
-      // TODO: Implement recipe parsing logic
-      const parsedRecipe = await parseRecipe(recipeTitle, recipeContent);
+      // Combine ingredients and steps for parsing (without headers since parser removes them)
+      const combinedContent = `${ingredients}\n\n${steps}`;
+      const parsedRecipe = parseRecipe(recipeTitle, combinedContent);
       
       // Navigate to recipe editing screen with parsed data
       navigation.navigate('EditRecipe', { 
@@ -37,6 +47,7 @@ export default function AddRecipeScreen({ navigation }) {
         isNew: true 
       });
     } catch (error) {
+      console.error('Recipe parsing error:', error);
       Alert.alert('Error', 'Failed to process recipe. Please try again.');
     } finally {
       setIsProcessing(false);
@@ -44,7 +55,7 @@ export default function AddRecipeScreen({ navigation }) {
   };
 
   const handleCancel = () => {
-    if (recipeTitle.trim() || recipeContent.trim()) {
+    if (recipeTitle.trim() || ingredients.trim() || steps.trim()) {
       Alert.alert(
         'Discard Recipe?',
         'You have unsaved changes. Are you sure you want to go back?',
@@ -58,24 +69,17 @@ export default function AddRecipeScreen({ navigation }) {
     }
   };
 
-  // Import and use the intelligent recipe parser
-  const parseRecipe = async (title, content) => {
-    // Use intelligent parsing engine
-    const { parseRecipe: intelligentParse } = await import('../utils/recipeParser');
-    return intelligentParse(title, content);
-  };
 
   return (
-    <SafeAreaView style={commonStyles.container}>
-      <KeyboardAvoidingView 
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <View style={styles.safeArea}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
-            <Text style={styles.title}>Add New Recipe</Text>
             <Text style={styles.subtitle}>
-              Paste your recipe in any format - we'll convert it into a step-by-step cooking flow
+              Enter your recipe ingredients and steps - we'll convert it into a step-by-step cooking flow
             </Text>
           </View>
 
@@ -93,49 +97,71 @@ export default function AddRecipeScreen({ navigation }) {
             </View>
 
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Recipe Content</Text>
+              <Text style={styles.label}>Ingredients</Text>
               <Text style={styles.helpText}>
-                Paste your recipe here - ingredients, steps, or any format
+                List your ingredients with quantities (e.g., "2 cups flour, 1 tsp salt")
               </Text>
               <TextInput
                 style={styles.contentInput}
-                value={recipeContent}
-                onChangeText={setRecipeContent}
-                placeholder="Paste your recipe here..."
+                value={ingredients}
+                onChangeText={setIngredients}
+                placeholder="2 cups flour&#10;1 tsp salt&#10;1 cup sugar..."
+                placeholderTextColor={colors.textSecondary}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Steps</Text>
+              <Text style={styles.helpText}>
+                Enter your cooking steps in order
+              </Text>
+              <TextInput
+                style={styles.contentInput}
+                value={steps}
+                onChangeText={setSteps}
+                placeholder="1. Preheat oven to 350°F&#10;2. Mix dry ingredients&#10;3. Add wet ingredients..."
                 placeholderTextColor={colors.textSecondary}
                 multiline
                 textAlignVertical="top"
               />
             </View>
           </View>
-        </ScrollView>
 
-        <View style={styles.buttonContainer}>
-          <Button
-            title="Cancel"
-            onPress={handleCancel}
-            variant="secondary"
-            style={styles.button}
-          />
-          <Button
-            title={isProcessing ? "Processing..." : "Next"}
-            onPress={handleNext}
-            disabled={!isFormValid || isProcessing}
-            style={[styles.button, !isFormValid && styles.disabledButton]}
-          />
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          <View style={styles.buttonContainer}>
+            <Button
+              title="Cancel"
+              onPress={handleCancel}
+              variant="secondary"
+              style={styles.button}
+            />
+            <Button
+              title={isProcessing ? "Processing..." : "Next"}
+              onPress={handleNext}
+              disabled={!isFormValid || isProcessing}
+              style={[styles.button, !isFormValid && styles.disabledButton]}
+            />
+          </View>
+        </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   header: {
     marginTop: 20,
@@ -192,10 +218,11 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     paddingVertical: 20,
     paddingBottom: 30,
-    gap: 12,
+    gap: 8,
+    width: '100%',
   },
   button: {
     flex: 1,

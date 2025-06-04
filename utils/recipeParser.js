@@ -9,8 +9,8 @@ const PREP_ACTIONS = [
   'sift', 'sifted', 'drain', 'drained', 'rinse', 'rinsed', 'pat dry', 'dried'
 ];
 
-// Common measurements and quantities
-const MEASUREMENT_REGEX = /(\d+(?:\/\d+)?(?:\.\d+)?)\s*(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|whole|medium|large|small)/gi;
+// Common measurements and quantities (supports ranges like 2-3, 2 to 3, 2-3/4)
+const MEASUREMENT_REGEX = /(\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?)\s*(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|whole|medium|large|small)/gi;
 
 // Time extraction patterns
 const TIME_REGEX = /(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/gi;
@@ -25,8 +25,19 @@ const REPETITION_REGEX = /(repeat|continue|for each|do this|again)\s*(\d+)?\s*(t
  * @returns {Object} Parsed recipe with structured steps
  */
 export function parseRecipe(title, content) {
-  // Clean and normalize input
-  const cleanContent = content.trim().replace(/\r\n/g, '\n');
+  // Clean and normalize input - remove section headers
+  let cleanContent = content.trim().replace(/\r\n/g, '\n');
+  
+  // Remove common section headers (case insensitive) and any numbers following them
+  cleanContent = cleanContent.replace(/^(ingredients?:?\s*\d*\s*)/gmi, '');
+  cleanContent = cleanContent.replace(/^(steps?:?\s*\d*\s*)/gmi, '');
+  cleanContent = cleanContent.replace(/^(instructions?:?\s*\d*\s*)/gmi, '');
+  cleanContent = cleanContent.replace(/^(directions?:?\s*\d*\s*)/gmi, '');
+  cleanContent = cleanContent.replace(/^(method:?\s*\d*\s*)/gmi, '');
+  cleanContent = cleanContent.replace(/^(preparation:?\s*\d*\s*)/gmi, '');
+  
+  // Remove multiple blank lines
+  cleanContent = cleanContent.replace(/\n\s*\n\s*\n/g, '\n\n');
   
   // Extract ingredients and their actions
   const ingredientMap = extractIngredients(cleanContent);
@@ -35,8 +46,14 @@ export function parseRecipe(title, content) {
   const rawSteps = parseSteps(cleanContent);
   
   // Process steps with intelligent parsing
-  const processedSteps = rawSteps.map((step, index) => {
-    return processStep(step, index, ingredientMap);
+  const processedSteps = [];
+  rawSteps.forEach((step, index) => {
+    const result = processStep(step, index, ingredientMap);
+    if (Array.isArray(result)) {
+      processedSteps.push(...result);
+    } else {
+      processedSteps.push(result);
+    }
   });
   
   // Add prep steps for ingredients with embedded actions
@@ -94,8 +111,12 @@ function extractIngredients(content) {
       // Extract ingredient name (remove measurement)
       const ingredientName = mainPart.replace(MEASUREMENT_REGEX, '').trim();
       if (ingredientName) {
+        // Normalize the quantity to handle ranges
+        const normalizedQuantity = normalizeQuantityRange(measurementMatch[0]);
+        
         ingredientMap[ingredientName] = {
-          quantity: measurementMatch[0],
+          quantity: normalizedQuantity,
+          originalQuantity: measurementMatch[0],
           prepActions: prepActions,
           originalLine: trimmedLine,
         };
@@ -251,7 +272,8 @@ function deduplicateIngredients(steps) {
   const usedIngredients = new Set();
   
   return steps.map(step => {
-    const filteredIngredients = step.ingredients.filter(ingredient => {
+    const ingredients = step.ingredients || [];
+    const filteredIngredients = ingredients.filter(ingredient => {
       const key = ingredient.toLowerCase();
       if (usedIngredients.has(key)) {
         return false;
@@ -304,6 +326,23 @@ function extractServings(content) {
   }
   
   return null;
+}
+
+/**
+ * Normalize quantity ranges (e.g., "2-3" or "2 to 3" becomes "2-3")
+ */
+function normalizeQuantityRange(quantity) {
+  // Handle "X to Y" format
+  if (quantity.includes(' to ')) {
+    return quantity.replace(' to ', '-');
+  }
+  
+  // Handle em dash or en dash
+  if (quantity.includes('–')) {
+    return quantity.replace('–', '-');
+  }
+  
+  return quantity;
 }
 
 /**
