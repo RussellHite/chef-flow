@@ -20,11 +20,13 @@ export default function StepEditor({
   onAddAfter, 
   onReorder,
   isFirst,
-  isLast 
+  isLast,
+  ingredients 
 }) {
   const [isEditing, setIsEditing] = useState(!step.content);
   const [content, setContent] = useState(step.content);
   const [timing, setTiming] = useState(step.timing || '');
+  const [timingControls, setTimingControls] = useState({});
 
   const handleSave = () => {
     if (!content.trim()) {
@@ -46,18 +48,28 @@ export default function StepEditor({
     setIsEditing(false);
   };
 
-  const formatIngredients = (ingredients) => {
-    if (!ingredients || ingredients.length === 0) return null;
+  const formatIngredients = (stepIngredientIds) => {
+    if (!stepIngredientIds || stepIngredientIds.length === 0 || !ingredients) return null;
     
-    return ingredients.map((ingredient, index) => (
-      <Text key={index} style={styles.ingredient}>
-        • {ingredient}
-      </Text>
-    ));
+    return stepIngredientIds.map((ingredientId, index) => {
+      const ingredient = ingredients.find(ing => ing.id === ingredientId);
+      if (!ingredient) return null;
+      
+      const displayName = ingredient.structured?.ingredient?.name || 
+                         ingredient.displayText || 
+                         ingredient.originalText || 
+                         ingredientId;
+      
+      return (
+        <Text key={index} style={styles.ingredient}>
+          • {displayName}
+        </Text>
+      );
+    }).filter(Boolean);
   };
 
   const getStepTypeIcon = () => {
-    const content = step.content.toLowerCase();
+    const content = (step.content || '').toLowerCase();
     if (content.includes('prep') || content.includes('chop') || content.includes('slice')) {
       return 'restaurant';
     }
@@ -89,6 +101,106 @@ export default function StepEditor({
     
     // If no sentences were found (no punctuation), return the original text
     return sentences.length > 0 ? sentences : [text];
+  };
+
+  const detectTiming = (sentence) => {
+    if (!sentence) return null;
+    
+    // Timing patterns to match
+    const timingPatterns = [
+      // "cook for 20 minutes", "bake for 1 hour", "simmer for 5-10 minutes"
+      /(\w+\s+for\s+)(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i,
+      // "cook 20 minutes", "bake 30 mins"
+      /(\w+\s+)(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i,
+      // "for 15 minutes", "for 1 hour"
+      /(for\s+)(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i,
+      // "15 minutes", "1 hour" (standalone)
+      /^(\s*)(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i
+    ];
+    
+    for (const pattern of timingPatterns) {
+      const match = sentence.match(pattern);
+      if (match) {
+        const timeValue = match[2];
+        const timeUnit = match[3];
+        const beforeTime = match[1];
+        
+        // Convert to minutes for consistency
+        let timeInMinutes;
+        if (timeValue.includes('-')) {
+          // Handle ranges like "5-10"
+          const [min, max] = timeValue.split('-').map(Number);
+          timeInMinutes = Math.round((min + max) / 2);
+        } else {
+          timeInMinutes = parseInt(timeValue);
+        }
+        
+        // Convert hours to minutes
+        if (timeUnit.toLowerCase().startsWith('hour') || timeUnit.toLowerCase().startsWith('hr')) {
+          timeInMinutes *= 60;
+        }
+        
+        return {
+          originalTime: timeValue,
+          timeInMinutes,
+          timeUnit,
+          beforeTime,
+          fullMatch: match[0],
+          sentence
+        };
+      }
+    }
+    
+    return null;
+  };
+
+  const updateTimingInSentence = (sentenceIndex, newTimeInMinutes) => {
+    const sentences = splitIntoSentences(step.content);
+    const sentence = sentences[sentenceIndex];
+    const timingInfo = detectTiming(sentence);
+    
+    if (!timingInfo) return;
+    
+    // Convert minutes back to appropriate unit
+    let displayTime, displayUnit;
+    if (newTimeInMinutes >= 60 && newTimeInMinutes % 60 === 0) {
+      displayTime = newTimeInMinutes / 60;
+      displayUnit = displayTime === 1 ? 'hour' : 'hours';
+    } else {
+      displayTime = newTimeInMinutes;
+      displayUnit = displayTime === 1 ? 'minute' : 'minutes';
+    }
+    
+    // Replace the timing in the sentence
+    const newSentence = sentence.replace(timingInfo.fullMatch, 
+      `${timingInfo.beforeTime}${displayTime} ${displayUnit}`);
+    
+    // Update the sentences array
+    const newSentences = [...sentences];
+    newSentences[sentenceIndex] = newSentence;
+    
+    // Update the content
+    const newContent = newSentences.join(' ');
+    setContent(newContent);
+    
+    // Update timing controls state
+    setTimingControls(prev => ({
+      ...prev,
+      [sentenceIndex]: newTimeInMinutes
+    }));
+  };
+
+  const adjustTiming = (sentenceIndex, delta) => {
+    const sentences = splitIntoSentences(step.content);
+    const sentence = sentences[sentenceIndex];
+    const timingInfo = detectTiming(sentence);
+    
+    if (!timingInfo) return;
+    
+    const currentTime = timingControls[sentenceIndex] || timingInfo.timeInMinutes;
+    const newTime = Math.max(1, currentTime + delta);
+    
+    updateTimingInSentence(sentenceIndex, newTime);
   };
 
   return (
@@ -178,11 +290,49 @@ export default function StepEditor({
         ) : (
           <View style={styles.displayContent}>
             <View style={styles.sentencesContainer}>
-              {splitIntoSentences(step.content).map((sentence, index) => (
-                <Text key={index} style={styles.stepText}>
-                  {sentence}
-                </Text>
-              ))}
+              {splitIntoSentences(step.content).map((sentence, sentenceIndex) => {
+                const timingInfo = detectTiming(sentence);
+                const currentTime = timingControls[sentenceIndex] || timingInfo?.timeInMinutes;
+                
+                return (
+                  <View key={sentenceIndex} style={styles.sentenceWithTiming}>
+                    <Text style={styles.stepText}>
+                      {sentence}
+                    </Text>
+                    
+                    {timingInfo && (
+                      <View style={styles.timingControlsContainer}>
+                        <TouchableOpacity 
+                          style={styles.timingButton}
+                          onPress={() => adjustTiming(sentenceIndex, -1)}
+                        >
+                          <Ionicons name="remove" size={16} color={colors.text} />
+                        </TouchableOpacity>
+                        
+                        <TextInput
+                          style={styles.timingControlInput}
+                          value={currentTime?.toString() || ''}
+                          onChangeText={(value) => {
+                            const numValue = parseInt(value) || 1;
+                            updateTimingInSentence(sentenceIndex, numValue);
+                          }}
+                          keyboardType="numeric"
+                          placeholder="0"
+                        />
+                        
+                        <TouchableOpacity 
+                          style={styles.timingButton}
+                          onPress={() => adjustTiming(sentenceIndex, 1)}
+                        >
+                          <Ionicons name="add" size={16} color={colors.text} />
+                        </TouchableOpacity>
+                        
+                        <Text style={styles.timerLabel}>timer</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </View>
             
             {step.ingredients && step.ingredients.length > 0 && (
@@ -347,5 +497,43 @@ const styles = StyleSheet.create({
   },
   reorderButton: {
     padding: 4,
+  },
+  sentenceWithTiming: {
+    marginBottom: 6,
+  },
+  timingControlsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingLeft: 16,
+    gap: 8,
+  },
+  timingButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 4,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timingControlInput: {
+    ...typography.body,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    textAlign: 'center',
+    minWidth: 50,
+    color: colors.text,
+  },
+  timerLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginLeft: 4,
   },
 });

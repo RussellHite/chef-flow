@@ -62,7 +62,7 @@ class EmbeddedIngredientDataSource {
       return Object.values(INGREDIENTS).slice(0, limit);
     }
     
-    const searchTerm = query.toLowerCase().trim();
+    const searchTerm = (query || '').toLowerCase().trim();
     const results = new Set();
     
     // Exact matches first
@@ -80,7 +80,7 @@ class EmbeddedIngredientDataSource {
     // Include custom ingredients
     for (const customIngredient of this.customIngredients.values()) {
       if (customIngredient.searchTerms.some(term => 
-        term.toLowerCase().includes(searchTerm)) && results.size < limit) {
+        (term || '').toLowerCase().includes(searchTerm)) && results.size < limit) {
         results.add(customIngredient);
       }
     }
@@ -413,11 +413,12 @@ class EmbeddedIngredientDataSource {
    * Find unit by name (handles plurals and aliases)
    */
   _findUnitByName(unitText) {
+    if (!unitText) return null;
     const normalizedText = unitText.toLowerCase();
     
     for (const unit of Object.values(UNITS)) {
-      if (unit.name.toLowerCase() === normalizedText || 
-          unit.plural.toLowerCase() === normalizedText) {
+      if ((unit.name || '').toLowerCase() === normalizedText || 
+          (unit.plural || '').toLowerCase() === normalizedText) {
         return unit;
       }
     }

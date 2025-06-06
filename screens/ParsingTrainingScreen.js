@@ -120,6 +120,12 @@ export default function ParsingTrainingScreen({ navigation }) {
             <Text style={styles.partLabel}>Description:</Text>
             <Text style={styles.partValue}>{manualParsing.description || 'none'}</Text>
           </View>
+          {manualParsing.action && (
+            <View style={styles.parsedPart}>
+              <Text style={styles.partLabel}>Action:</Text>
+              <Text style={[styles.partValue, styles.actionValue]}>{manualParsing.action}</Text>
+            </View>
+          )}
         </View>
         
         <Text style={styles.timestamp}>{date} at {time}</Text>
@@ -339,6 +345,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     flex: 1,
     fontStyle: 'italic',
+  },
+
+  actionValue: {
+    color: colors.info || '#3B82F6',
+    fontWeight: '500',
   },
 
   timestamp: {

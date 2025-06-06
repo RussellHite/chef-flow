@@ -49,15 +49,59 @@ export default function WelcomeScreen({ navigation, route }) {
     });
   };
 
+  const handleCookRecipe = (recipe) => {
+    navigation.navigate('Recipes', {
+      screen: 'CookRecipe',
+      params: { recipe }
+    });
+  };
+
   const renderRecipeCard = ({ item: recipe }) => (
     <View style={styles.recipeCard}>
-      <Text style={styles.recipeTitle}>{recipe.title}</Text>
-      <Button
-        title="Edit"
-        onPress={() => handleEditRecipe(recipe)}
-        variant="secondary"
-        style={styles.editButton}
-      />
+      <View style={styles.recipeHeader}>
+        <Text style={styles.recipeTitle}>{recipe.title}</Text>
+      </View>
+      
+      <View style={styles.recipeInfo}>
+        <View style={styles.infoItem}>
+          <Ionicons name="time" size={16} color={colors.primary} />
+          <Text style={styles.infoText}>
+            {recipe.totalTime || 'No timing'}
+          </Text>
+        </View>
+        
+        <View style={styles.infoItem}>
+          <Ionicons name="list" size={16} color={colors.primary} />
+          <Text style={styles.infoText}>
+            {recipe.steps?.length || 0} steps
+          </Text>
+        </View>
+        
+        {recipe.servings && (
+          <View style={styles.infoItem}>
+            <Ionicons name="people" size={16} color={colors.primary} />
+            <Text style={styles.infoText}>
+              {recipe.servings}
+            </Text>
+          </View>
+        )}
+      </View>
+      
+      <View style={styles.recipeActions}>
+        <TouchableOpacity 
+          onPress={() => handleEditRecipe(recipe)}
+          style={styles.actionButton}
+        >
+          <Text style={styles.actionButtonText}>Edit Recipe</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          onPress={() => handleCookRecipe(recipe)}
+          style={[styles.actionButton, styles.primaryActionButton]}
+        >
+          <Text style={[styles.actionButtonText, styles.primaryActionButtonText]}>Cook</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -195,18 +239,57 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+    ...commonStyles.shadow,
+  },
+  recipeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    ...commonStyles.shadow,
+    marginBottom: 12,
   },
   recipeTitle: {
     ...typography.h3,
     color: colors.text,
     flex: 1,
-    marginRight: 16,
   },
-  editButton: {
-    minWidth: 80,
+  recipeInfo: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 12,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  infoText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  recipeActions: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'flex-end',
+  },
+  actionButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  primaryActionButton: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  actionButtonText: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  primaryActionButtonText: {
+    color: colors.surface,
   },
 });

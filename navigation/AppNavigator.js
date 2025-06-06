@@ -12,6 +12,8 @@ import ParsingTrainingScreen from '../screens/ParsingTrainingScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddRecipeScreen from '../screens/AddRecipeScreen';
 import EditRecipeScreen from '../screens/EditRecipeScreen';
+import CookRecipeScreen from '../screens/CookRecipeScreen';
+import CookingFlowScreen from '../screens/CookingFlowScreen';
 import { colors } from '../styles/colors';
 
 const Tab = createBottomTabNavigator();
@@ -44,6 +46,16 @@ function RecipesStack() {
         name="EditRecipe" 
         component={EditRecipeScreen}
         options={{ title: 'Edit Recipe' }}
+      />
+      <Stack.Screen 
+        name="CookRecipe" 
+        component={CookRecipeScreen}
+        options={{ title: 'Cook Recipe' }}
+      />
+      <Stack.Screen 
+        name="CookingFlow" 
+        component={CookingFlowScreen}
+        options={{ title: 'Cooking' }}
       />
     </Stack.Navigator>
   );

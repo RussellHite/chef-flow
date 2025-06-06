@@ -13,15 +13,16 @@ import Button from '../components/Button';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
+import { useRecipes } from '../contexts/RecipeContext';
 
 export default function RecipesScreen({ navigation, route }) {
-  const [recipes, setRecipes] = useState([]);
+  const { recipes, addRecipe } = useRecipes();
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Handle new recipe from EditRecipe screen
     if (route.params?.newRecipe) {
-      setRecipes(prev => [route.params.newRecipe, ...prev]);
+      addRecipe(route.params.newRecipe);
       
       if (route.params?.showSuccess) {
         Alert.alert('Success', 'Recipe saved successfully!');
@@ -37,8 +38,7 @@ export default function RecipesScreen({ navigation, route }) {
   };
 
   const handleRecipePress = (recipe) => {
-    // TODO: Navigate to cooking mode
-    Alert.alert('Coming Soon', 'Cooking mode will be available soon!');
+    navigation.navigate('CookRecipe', { recipe });
   };
 
   const handleEditRecipe = (recipe) => {
@@ -50,18 +50,9 @@ export default function RecipesScreen({ navigation, route }) {
   };
 
   const renderRecipeCard = ({ item: recipe }) => (
-    <TouchableOpacity 
-      style={styles.recipeCard}
-      onPress={() => handleRecipePress(recipe)}
-    >
+    <View style={styles.recipeCard}>
       <View style={styles.recipeHeader}>
         <Text style={styles.recipeTitle}>{recipe.title}</Text>
-        <TouchableOpacity 
-          onPress={() => handleEditRecipe(recipe)}
-          style={styles.editButton}
-        >
-          <Ionicons name="pencil" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
       </View>
       
       <View style={styles.recipeInfo}>
@@ -83,19 +74,28 @@ export default function RecipesScreen({ navigation, route }) {
           <View style={styles.infoItem}>
             <Ionicons name="people" size={16} color={colors.primary} />
             <Text style={styles.infoText}>
-              Serves {recipe.servings}
+              {recipe.servings}
             </Text>
           </View>
         )}
       </View>
       
       <View style={styles.recipeActions}>
-        <View style={styles.actionButton}>
-          <Ionicons name="play" size={16} color={colors.primary} />
-          <Text style={styles.actionText}>Cook</Text>
-        </View>
+        <TouchableOpacity 
+          onPress={() => handleEditRecipe(recipe)}
+          style={styles.actionButton}
+        >
+          <Text style={styles.actionButtonText}>Edit Recipe</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          onPress={() => handleRecipePress(recipe)}
+          style={[styles.actionButton, styles.primaryActionButton]}
+        >
+          <Text style={[styles.actionButtonText, styles.primaryActionButtonText]}>Cook</Text>
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   const renderEmptyState = () => (
@@ -190,9 +190,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     flex: 1,
   },
-  editButton: {
-    padding: 4,
-  },
   recipeInfo: {
     flexDirection: 'row',
     gap: 16,
@@ -209,19 +206,29 @@ const styles = StyleSheet.create({
   },
   recipeActions: {
     flexDirection: 'row',
+    gap: 12,
     justifyContent: 'flex-end',
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
   },
-  actionText: {
+  primaryActionButton: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  actionButtonText: {
     ...typography.caption,
-    color: colors.primary,
+    color: colors.text,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  primaryActionButtonText: {
+    color: colors.surface,
   },
   emptyState: {
     flex: 1,

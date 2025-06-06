@@ -30,7 +30,7 @@ const extractName = (ingredientText) => {
 
 export default function EditRecipeScreen({ route, navigation }) {
   const { recipe, originalContent, isNew, fromHome } = route.params;
-  const { updateRecipe } = useRecipes();
+  const { updateRecipe, deleteRecipe } = useRecipes();
   const [editedRecipe, setEditedRecipe] = useState(recipe);
   const [ingredients, setIngredients] = useState(
     recipe.ingredients ? recipe.ingredients : []
@@ -46,6 +46,11 @@ export default function EditRecipeScreen({ route, navigation }) {
           <Ionicons name="close" size={24} color={colors.surface} />
         </TouchableOpacity>
       ),
+      headerRight: !isNew ? () => (
+        <TouchableOpacity onPress={handleDeleteRecipe} style={styles.headerButton}>
+          <Ionicons name="trash" size={24} color={colors.surface} />
+        </TouchableOpacity>
+      ) : undefined,
     });
   }, [navigation, isNew, fromHome]);
 
@@ -91,6 +96,20 @@ export default function EditRecipeScreen({ route, navigation }) {
     setEditedRecipe(prev => ({
       ...prev,
       steps: newSteps,
+    }));
+  };
+
+  const handleCreateStepFromAction = (stepContent, ingredientId) => {
+    const newStep = {
+      id: `step_${Date.now()}`,
+      content: stepContent,
+      timing: null,
+      ingredients: [ingredientId],
+    };
+
+    setEditedRecipe(prev => ({
+      ...prev,
+      steps: [newStep, ...prev.steps],
     }));
   };
 
@@ -145,6 +164,24 @@ export default function EditRecipeScreen({ route, navigation }) {
       [
         { text: 'Keep Editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
+      ]
+    );
+  };
+
+  const handleDeleteRecipe = () => {
+    Alert.alert(
+      'Delete Recipe?',
+      `Are you sure you want to delete "${editedRecipe.title}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Recipe',
+          style: 'destructive',
+          onPress: () => {
+            deleteRecipe(editedRecipe.id);
+            navigation.navigate('Recipes');
+          },
+        },
       ]
     );
   };
@@ -308,6 +345,7 @@ export default function EditRecipeScreen({ route, navigation }) {
   };
 
   const isIngredientMatch = (stepIngredient, ingredientName) => {
+    if (!stepIngredient || !ingredientName) return false;
     const stepIngredientLower = stepIngredient.toLowerCase();
     const ingredientNameLower = ingredientName.toLowerCase();
     
@@ -420,6 +458,7 @@ export default function EditRecipeScreen({ route, navigation }) {
                     ingredient={ingredient}
                     onEdit={handleIngredientEdit}
                     onDelete={handleIngredientDelete}
+                    onCreateStep={handleCreateStepFromAction}
                     showActions={true}
                   />
                 ))}
@@ -436,6 +475,7 @@ export default function EditRecipeScreen({ route, navigation }) {
                     key={step.id}
                     step={step}
                     index={index}
+                    ingredients={ingredients}
                     onUpdate={handleStepUpdate}
                     onDelete={handleDeleteStep}
                     onAddAfter={handleAddStep}

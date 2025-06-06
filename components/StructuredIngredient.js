@@ -36,6 +36,7 @@ export default function StructuredIngredient({
   ingredient, 
   onEdit, 
   onDelete, 
+  onCreateStep,
   showActions = true,
   compact = false 
 }) {
@@ -114,6 +115,7 @@ export default function StructuredIngredient({
     const unit = manualParts.filter(p => p.type === 'unit').map(p => p.text).join(' ');
     const ingredientName = manualParts.filter(p => p.type === 'ingredient').map(p => p.text).join(' ');
     const description = manualParts.filter(p => p.type === 'description').map(p => p.text).join(' ');
+    const action = manualParts.filter(p => p.type === 'action').map(p => p.text).join(' ');
 
     // Build new ingredient text (same as preview)
     let newText = '';
@@ -123,7 +125,10 @@ export default function StructuredIngredient({
     if (description) newText += ', ' + description;
 
     // Create structured ingredient object for immediate display
-    const unitData = MEASUREMENT_UNITS.find(u => u.label.toLowerCase() === unit.toLowerCase() || u.plural.toLowerCase() === unit.toLowerCase());
+    const unitData = unit ? MEASUREMENT_UNITS.find(u => 
+      (u.label && u.label.toLowerCase() === unit.toLowerCase()) || 
+      (u.plural && u.plural.toLowerCase() === unit.toLowerCase())
+    ) : null;
     const parsedQuantity = quantity ? parseFloat(quantity.match(/[\d.]+/)?.[0] || '1') : null;
     
     // Fix unit pluralization - if unit not found in standard units, create proper plural
@@ -156,9 +161,35 @@ export default function StructuredIngredient({
       unit: unit || null,
       ingredient: ingredientName || null,
       description: description || null,
+      action: action || null,
       parts: manualParts,
       structured: newStructuredIngredient
     });
+
+    // If there's an action, create a step from it
+    if (action && onCreateStep) {
+      // Build step content with action + quantity + ingredient
+      let stepContent = '';
+      
+      // Add action in present tense (capitalize first letter)
+      const presentTenseAction = convertToPresentTense(action);
+      stepContent += presentTenseAction.charAt(0).toUpperCase() + presentTenseAction.slice(1) + ' ';
+      
+      // Add quantity and unit
+      if (quantity) stepContent += quantity + ' ';
+      if (unit) stepContent += unit + ' ';
+      
+      // Add ingredient name
+      if (ingredientName) {
+        stepContent += ingredientName;
+      } else if (ingredient.structured?.ingredient?.name) {
+        stepContent += ingredient.structured.ingredient.name;
+      } else {
+        stepContent += 'ingredient';
+      }
+      
+      onCreateStep(stepContent.trim(), ingredient.id);
+    }
 
     // Update the ingredient with new structured data
     const updatedIngredient = {
@@ -200,20 +231,20 @@ export default function StructuredIngredient({
         {/* Unit */}
         {unit && (
           <Text style={styles.unitText}>
-            {quantity === 1 ? unit.name : unit.plural}
+            {quantity === 1 ? (unit.name || unit.value || '') : (unit.plural || unit.value || '')}
           </Text>
         )}
         
         {/* Base ingredient name */}
         <Text style={styles.ingredientName}>
-          {baseIngredient.name}
+          {baseIngredient?.name || 'ingredient'}
         </Text>
         
         {/* Preparation method */}
         {preparation && (
           <View style={styles.preparationContainer}>
             <Text style={styles.preparationText}>
-              {preparation.name}
+              {preparation.name || ''}
             </Text>
             {preparation.requiresStep && (
               <Ionicons 
@@ -248,6 +279,7 @@ export default function StructuredIngredient({
       unit: colors.secondary || '#6B7280',
       ingredient: colors.success || '#10B981', 
       description: colors.warning || '#F59E0B',
+      action: colors.info || '#3B82F6',
       unassigned: colors.textSecondary
     };
 
@@ -276,6 +308,10 @@ export default function StructuredIngredient({
             <View style={[styles.legendColor, { backgroundColor: typeColors.description }]} />
             <Text style={styles.legendText}>Description</Text>
           </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: typeColors.action }]} />
+            <Text style={styles.legendText}>Action</Text>
+          </View>
         </View>
 
         {/* Parts to assign */}
@@ -286,7 +322,7 @@ export default function StructuredIngredient({
                 "{part.text}"
               </Text>
               <View style={styles.typeButtons}>
-                {['quantity', 'unit', 'ingredient', 'description'].map(type => (
+                {['quantity', 'unit', 'ingredient', 'description', 'action'].map(type => (
                   <TouchableOpacity
                     key={type}
                     style={[
@@ -320,6 +356,11 @@ export default function StructuredIngredient({
               ', ' + manualParts.filter(p => p.type === 'description').map(p => p.text).join(' ')
             }
           </Text>
+          {manualParts.filter(p => p.type === 'action').length > 0 && (
+            <Text style={styles.actionPreviewText}>
+              Action: {manualParts.filter(p => p.type === 'action').map(p => p.text).join(' ')}
+            </Text>
+          )}
         </View>
 
         {/* Action buttons */}
@@ -461,6 +502,102 @@ export default function StructuredIngredient({
       )}
     </View>
   );
+}
+
+/**
+ * Convert action verbs to present tense for step instructions
+ */
+function convertToPresentTense(action) {
+  if (!action) return '';
+  
+  // Common cooking verb conversions
+  const verbMap = {
+    // Past tense to present tense
+    'chopped': 'chop',
+    'diced': 'dice',
+    'sliced': 'slice',
+    'minced': 'mince',
+    'grated': 'grate',
+    'shredded': 'shred',
+    'peeled': 'peel',
+    'crushed': 'crush',
+    'julienned': 'julienne',
+    'cubed': 'cube',
+    'halved': 'halve',
+    'quartered': 'quarter',
+    'trimmed': 'trim',
+    'cored': 'core',
+    'pitted': 'pit',
+    'seeded': 'seed',
+    'sifted': 'sift',
+    'drained': 'drain',
+    'rinsed': 'rinse',
+    'dried': 'dry',
+    'juiced': 'juice',
+    'cooked': 'cook',
+    'roasted': 'roast',
+    'grilled': 'grill',
+    'steamed': 'steam',
+    'boiled': 'boil',
+    'fried': 'fry',
+    'sautéed': 'sauté',
+    'baked': 'bake',
+    'broiled': 'broil',
+    'melted': 'melt',
+    'heated': 'heat',
+    'mixed': 'mix',
+    'stirred': 'stir',
+    'beaten': 'beat',
+    'whisked': 'whisk',
+    'folded': 'fold',
+    'combined': 'combine',
+    
+    // Gerund (-ing) to present tense
+    'chopping': 'chop',
+    'dicing': 'dice',
+    'slicing': 'slice',
+    'mincing': 'mince',
+    'grating': 'grate',
+    'shredding': 'shred',
+    'peeling': 'peel',
+    'crushing': 'crush',
+    'mixing': 'mix',
+    'stirring': 'stir',
+    'cooking': 'cook',
+    'heating': 'heat',
+    'beating': 'beat',
+    'whisking': 'whisk',
+    'folding': 'fold',
+    'combining': 'combine'
+  };
+  
+  // Split action into words and convert each verb
+  const words = action.toLowerCase().split(/\s+/);
+  const convertedWords = words.map(word => {
+    // Remove common punctuation
+    const cleanWord = word.replace(/[,.]$/, '');
+    const punctuation = word.match(/[,.]$/) ? word.slice(-1) : '';
+    
+    // Check if word is in our verb map
+    if (verbMap[cleanWord]) {
+      return verbMap[cleanWord] + punctuation;
+    }
+    
+    // Handle regular past tense (-ed ending)
+    if (cleanWord.endsWith('ed') && cleanWord.length > 3) {
+      let base = cleanWord.slice(0, -2);
+      // Handle doubled consonants (e.g., 'chopped' -> 'chop')
+      if (base.length > 2 && base[base.length - 1] === base[base.length - 2]) {
+        base = base.slice(0, -1);
+      }
+      return base + punctuation;
+    }
+    
+    // Return original word if no conversion needed
+    return word;
+  });
+  
+  return convertedWords.join(' ');
 }
 
 /**
@@ -822,5 +959,13 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text,
     fontStyle: 'italic',
+  },
+
+  actionPreviewText: {
+    ...typography.body,
+    color: colors.info || '#3B82F6',
+    fontStyle: 'italic',
+    fontWeight: '500',
+    marginTop: 4,
   },
 });
