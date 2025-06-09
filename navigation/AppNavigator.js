@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
+import { navigationRef } from '../services/NavigationService';
 
 import WelcomeScreen from '../screens/WelcomeScreen';
 import RecipesScreen from '../screens/RecipesScreen';
@@ -167,7 +168,7 @@ function TabNavigator() {
 
 export default function AppNavigator() {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <TabNavigator />
     </NavigationContainer>
   );

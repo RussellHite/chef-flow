@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
+import TimerService from '../services/TimerService';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
 
 export default function CookingFlowScreen({ route, navigation }) {
-  const { recipe } = route.params;
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const { recipe, initialStepIndex = 0 } = route.params;
+  const [currentStepIndex, setCurrentStepIndex] = useState(initialStepIndex);
   const [readyByTime, setReadyByTime] = useState('');
   const [timeRemaining, setTimeRemaining] = useState('');
   const [timerValue, setTimerValue] = useState(0);
@@ -31,6 +32,17 @@ export default function CookingFlowScreen({ route, navigation }) {
           <Ionicons name="arrow-back" size={24} color={colors.surface} />
         </TouchableOpacity>
       ),
+      headerRight: () => (
+        <TouchableOpacity 
+          onPress={async () => {
+            await TimerService.clearAllTimers();
+            alert('All timers cleared!');
+          }} 
+          style={styles.headerButton}
+        >
+          <Ionicons name="trash-outline" size={24} color={colors.surface} />
+        </TouchableOpacity>
+      ),
     });
   }, [navigation]);
 
@@ -38,6 +50,13 @@ export default function CookingFlowScreen({ route, navigation }) {
     calculateTimes();
     setSentenceTimers({}); // Reset timers when step changes
   }, [recipe, currentStepIndex]);
+
+  useEffect(() => {
+    const unsubscribe = TimerService.addListener(setActiveTimers);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const calculateTimes = () => {
     // Calculate total remaining time from current step onwards
@@ -107,6 +126,12 @@ export default function CookingFlowScreen({ route, navigation }) {
         if (timeUnit.toLowerCase().startsWith('hour') || timeUnit.toLowerCase().startsWith('hr')) {
           timeInMinutes *= 60;
         }
+        // Convert seconds to minutes
+        else if (timeUnit.toLowerCase().startsWith('sec')) {
+          timeInMinutes = Math.max(1, Math.round(timeInMinutes / 60)); // At least 1 minute
+        }
+        
+        console.log('Detected timing:', { sentence, timeValue, timeInMinutes, timeUnit });
         
         return {
           originalTime: timeValue,
@@ -123,6 +148,7 @@ export default function CookingFlowScreen({ route, navigation }) {
   };
 
   const [sentenceTimers, setSentenceTimers] = useState({});
+  const [activeTimers, setActiveTimers] = useState([]);
 
   const handlePreviousStep = () => {
     if (currentStepIndex > 0) {
@@ -147,8 +173,12 @@ export default function CookingFlowScreen({ route, navigation }) {
       
       if (!timingInfo) return prev;
       
-      const currentTime = prev[sentenceIndex] || timingInfo.timeInMinutes;
+      const currentTime = prev[sentenceIndex] !== undefined 
+        ? prev[sentenceIndex] 
+        : timingInfo.timeInMinutes;
       const newTime = Math.max(1, currentTime + delta);
+      
+      console.log(`Adjusting timer: ${currentTime} -> ${newTime} minutes`);
       
       return {
         ...prev,
@@ -157,10 +187,43 @@ export default function CookingFlowScreen({ route, navigation }) {
     });
   };
 
-  const handleStartTimer = (sentenceIndex) => {
-    const currentTime = sentenceTimers[sentenceIndex];
-    // TODO: Implement timer functionality
-    console.log(`Starting timer for ${currentTime} minutes`);
+  const getTimerId = (sentenceIndex) => {
+    return `step-${currentStepIndex}-sentence-${sentenceIndex}`;
+  };
+
+  const handleStartTimer = async (sentenceIndex) => {
+    const sentences = splitIntoSentences(currentStep?.content || '');
+    const sentence = sentences[sentenceIndex];
+    const timingInfo = detectTiming(sentence);
+    const currentTime = sentenceTimers[sentenceIndex] || timingInfo?.timeInMinutes;
+    const timerId = getTimerId(sentenceIndex);
+    const existingTimer = TimerService.getTimer(timerId);
+    
+    console.log('Starting timer:', { sentenceIndex, currentTime, timerId });
+    
+    if (existingTimer) {
+      if (existingTimer.isRunning) {
+        await TimerService.pauseTimer(timerId);
+      } else {
+        await TimerService.resumeTimer(timerId);
+      }
+    } else {
+      const recipeData = {
+        recipeId: recipe.id,
+        stepIndex: currentStepIndex
+      };
+      await TimerService.startTimer(timerId, currentTime, sentence.substring(0, 30) + '...', recipeData);
+    }
+  };
+
+  const handleResetTimer = (sentenceIndex) => {
+    const timerId = getTimerId(sentenceIndex);
+    TimerService.resetTimer(timerId);
+  };
+
+  const handleStopTimer = async (sentenceIndex) => {
+    const timerId = getTimerId(sentenceIndex);
+    await TimerService.stopTimer(timerId);
   };
 
   const splitIntoSentences = (text) => {
@@ -215,7 +278,12 @@ export default function CookingFlowScreen({ route, navigation }) {
           <View style={styles.sentencesContainer}>
             {splitIntoSentences(currentStep?.content || 'No step content').map((sentence, sentenceIndex) => {
               const timingInfo = detectTiming(sentence);
-              const currentTime = sentenceTimers[sentenceIndex] || timingInfo?.timeInMinutes;
+              // Use manually adjusted time if available, otherwise use detected time
+              const currentTime = sentenceTimers[sentenceIndex] !== undefined 
+                ? sentenceTimers[sentenceIndex] 
+                : timingInfo?.timeInMinutes;
+              const timerId = getTimerId(sentenceIndex);
+              const activeTimer = TimerService.getTimer(timerId);
               
               return (
                 <View key={sentenceIndex} style={styles.sentenceWithTiming}>
@@ -224,32 +292,71 @@ export default function CookingFlowScreen({ route, navigation }) {
                   </Text>
                   
                   {timingInfo && (
-                    <View style={styles.timerBanner}>
+                    <View style={[
+                      styles.timerBanner, 
+                      activeTimer?.isOverflow && styles.timerBannerOverflow
+                    ]}>
                       <View style={styles.timingControlsContainer}>
-                        <TouchableOpacity 
-                          style={styles.timingButton}
-                          onPress={() => adjustSentenceTimer(sentenceIndex, -1)}
-                        >
-                          <Ionicons name="remove" size={16} color={colors.text} />
-                        </TouchableOpacity>
+                        {!activeTimer && (
+                          <>
+                            <TouchableOpacity 
+                              style={styles.timingButton}
+                              onPress={() => adjustSentenceTimer(sentenceIndex, -1)}
+                            >
+                              <Ionicons name="remove" size={16} color={colors.text} />
+                            </TouchableOpacity>
+                            
+                            <Text style={styles.timingValue}>
+                              {currentTime} min
+                            </Text>
+                            
+                            <TouchableOpacity 
+                              style={styles.timingButton}
+                              onPress={() => adjustSentenceTimer(sentenceIndex, 1)}
+                            >
+                              <Ionicons name="add" size={16} color={colors.text} />
+                            </TouchableOpacity>
+                          </>
+                        )}
                         
-                        <Text style={styles.timingValue}>
-                          {currentTime} min
-                        </Text>
+                        {activeTimer && (
+                          <Text style={styles.timingValue}>
+                            {TimerService.formatTime(activeTimer.remainingTime)}
+                          </Text>
+                        )}
                         
                         <TouchableOpacity 
-                          style={styles.timingButton}
-                          onPress={() => adjustSentenceTimer(sentenceIndex, 1)}
-                        >
-                          <Ionicons name="add" size={16} color={colors.text} />
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                          style={styles.startTimerButtonSmall}
+                          style={[
+                            styles.startTimerButtonSmall,
+                            activeTimer?.isRunning && styles.pauseTimerButton
+                          ]}
                           onPress={() => handleStartTimer(sentenceIndex)}
                         >
-                          <Text style={styles.startTimerTextSmall}>Start Timer</Text>
+                          <Text style={styles.startTimerTextSmall}>
+                            {activeTimer 
+                              ? (activeTimer.isRunning ? 'Pause' : 'Resume')
+                              : 'Start Timer'
+                            }
+                          </Text>
                         </TouchableOpacity>
+                        
+                        {activeTimer && (
+                          <>
+                            <TouchableOpacity 
+                              style={styles.resetTimerButton}
+                              onPress={() => handleResetTimer(sentenceIndex)}
+                            >
+                              <Ionicons name="refresh" size={16} color={colors.text} />
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity 
+                              style={styles.stopTimerButton}
+                              onPress={() => handleStopTimer(sentenceIndex)}
+                            >
+                              <Ionicons name="stop" size={16} color={colors.error} />
+                            </TouchableOpacity>
+                          </>
+                        )}
                       </View>
                     </View>
                   )}
@@ -350,6 +457,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
+  timerBannerOverflow: {
+    backgroundColor: '#FFE5E5',
+  },
   timingControlsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -382,6 +492,29 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.surface,
     fontWeight: '600',
+  },
+  pauseTimerButton: {
+    backgroundColor: colors.warning,
+  },
+  resetTimerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopTimerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   navigationButtons: {
     flexDirection: 'row',
