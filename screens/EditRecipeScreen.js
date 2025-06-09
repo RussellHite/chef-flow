@@ -194,7 +194,7 @@ export default function EditRecipeScreen({ route, navigation }) {
       ingredients: [ingredientId],
     };
 
-    // Store the original content for this new step
+    // Store the original content for this new step BEFORE adding to recipe
     setOriginalStepContent(prev => {
       const updated = new Map(prev);
       updated.set(newStep.id, stepContent);
@@ -205,6 +205,9 @@ export default function EditRecipeScreen({ route, navigation }) {
       ...prev,
       steps: [newStep, ...prev.steps],
     }));
+    
+    // Don't trigger updateAllStepsContent here since the step already has the right content
+    // The step content from action parsing already includes the amount
   };
 
   const handleDeleteStep = (stepId) => {
@@ -365,16 +368,38 @@ export default function EditRecipeScreen({ route, navigation }) {
 
   const updateAllStepsContent = () => {
     setEditedRecipe(prev => {
-      if (!prev.steps || !ingredients || originalStepContent.size === 0) return prev;
+      if (!prev.steps || !ingredients) return prev;
       
       console.log('Updating all steps content from original...');
+      
+      // Create a new Map with current original content, adding missing entries
+      const currentOriginalContent = new Map(originalStepContent);
+      prev.steps.forEach(step => {
+        if (!currentOriginalContent.has(step.id)) {
+          // Clean any existing duplications before storing as original
+          let cleanContent = step.content;
+          
+          // Remove obvious duplications like "1 1 lemon" -> "1 lemon" or "2 sprigs 2 sprigs parsley" -> "2 sprigs parsley"
+          cleanContent = cleanContent.replace(/(\b\d+(?:\.\d+)?\s+(?:cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|sprigs?|pinch|pinches?|whole|medium|large|small|cans?|packages?|boxes?|containers?)\s+)\1+/gi, '$1');
+          
+          // Remove number duplications like "1 1 lemon" -> "1 lemon"
+          cleanContent = cleanContent.replace(/(\b\d+(?:\.\d+)?)\s+\1+(\s+\w+)/gi, '$1$2');
+          
+          currentOriginalContent.set(step.id, cleanContent);
+        }
+      });
+      
+      // Update the originalStepContent state with new entries
+      if (currentOriginalContent.size > originalStepContent.size) {
+        setOriginalStepContent(currentOriginalContent);
+      }
       
       // Track which ingredients have been mentioned
       const ingredientMentions = new Map(); // ingredientName -> first step index
       
       const updatedSteps = prev.steps.map((step, stepIndex) => {
         // Always start from the original content to prevent accumulation
-        const originalContent = originalStepContent.get(step.id) || step.content;
+        const originalContent = currentOriginalContent.get(step.id) || step.content;
         let updatedContent = originalContent;
         
         console.log(`Processing step ${stepIndex + 1}: "${originalContent}"`);
@@ -395,25 +420,59 @@ export default function EditRecipeScreen({ route, navigation }) {
               // Mark as mentioned and build full spec
               ingredientMentions.set(ingredientName, stepIndex);
               
-              // Build amount + unit + name
-              let simpleSpec = '';
+              // Check if the step already has amount/unit before the ingredient name
+              // This prevents duplicate replacements in action-generated steps
               const quantity = ingredient.structured.quantity;
               const unit = ingredient.structured.unit;
               
-              if (quantity !== null && quantity !== undefined) {
-                simpleSpec += quantity + ' ';
-              }
+              // More flexible pattern matching - look for any number + optional unit + ingredient
+              const escapedIngredientName = ingredientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
               
+              // Pattern 1: Exact quantity + unit + ingredient
+              let exactPattern = '';
+              if (quantity !== null && quantity !== undefined) {
+                exactPattern += quantity.toString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*';
+              }
               if (unit) {
                 const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
-                simpleSpec += unitName + ' ';
+                exactPattern += unitName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*';
               }
+              const exactMatch = exactPattern && 
+                new RegExp(exactPattern + escapedIngredientName, 'i').test(updatedContent);
               
-              simpleSpec += ingredientName;
+              // Pattern 2: Any number + any unit + ingredient (for action-generated steps)
+              const anyAmountPattern = new RegExp(
+                '\\d+(?:\\.\\d+)?(?:\\s*/\\s*\\d+)?\\s+(?:' +
+                'cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|sprigs?|pinch|pinches?|whole|medium|large|small|cans?|packages?|boxes?|containers?' +
+                ')\\s+' + escapedIngredientName, 'i'
+              );
+              const generalMatch = anyAmountPattern.test(updatedContent);
               
-              // Replace with full specification
-              updatedContent = updatedContent.replace(regex, simpleSpec.trim());
-              console.log(`Replaced with: "${simpleSpec.trim()}", result: "${updatedContent}"`);
+              const alreadyHasAmount = exactMatch || generalMatch;
+              
+              console.log(`Amount check for "${ingredientName}": exact=${exactMatch}, general=${generalMatch}, content="${updatedContent}"`);
+              
+              if (!alreadyHasAmount) {
+                // Build amount + unit + name
+                let simpleSpec = '';
+                
+                if (quantity !== null && quantity !== undefined) {
+                  simpleSpec += quantity + ' ';
+                }
+                
+                if (unit) {
+                  const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
+                  simpleSpec += unitName + ' ';
+                }
+                
+                simpleSpec += ingredientName;
+                
+                // Replace with full specification
+                updatedContent = updatedContent.replace(regex, simpleSpec.trim());
+                console.log(`Replaced with: "${simpleSpec.trim()}", result: "${updatedContent}"`);
+              } else {
+                console.log(`Step already has amount for "${ingredientName}", skipping replacement`);
+              }
             }
             // For subsequent mentions, leave as just the ingredient name (no replacement needed)
           }
