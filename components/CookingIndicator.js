@@ -105,13 +105,14 @@ export default function CookingIndicator({ navigation, onPress }) {
   const handlePress = () => {
     if (onPress) {
       onPress();
-    } else if (navigation) {
-      // Navigate to cooking flow screen
+    } else if (navigation && isActive) {
+      // Navigate to cooking flow screen with resume flag
+      // The CookingFlowScreen should detect the active session and resume
       navigation.navigate('Recipes', {
         screen: 'CookingFlow',
         params: { 
-          recipe: { title: recipeName },
-          resumeSession: true 
+          resumeSession: true,
+          recipeTitle: recipeName // Just pass the title for reference
         }
       });
     }

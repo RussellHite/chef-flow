@@ -16,11 +16,13 @@ import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
 
 export default function CookingFlowScreen({ route, navigation }) {
-  const { recipe, initialStepIndex = 0 } = route.params;
+  const { recipe, initialStepIndex = 0, resumeSession = false } = route.params || {};
   
   // Use global cooking session management
   const {
     isActive,
+    activeRecipe,
+    rawState,
     startCookingSession,
     endCookingSession,
     currentStepIndex: globalStepIndex,
@@ -32,21 +34,60 @@ export default function CookingFlowScreen({ route, navigation }) {
     isFinalStep
   } = useCookingSession();
   
+  // Handle case where we're resuming a session vs starting a new one
+  const [workingRecipe, setWorkingRecipe] = useState(null);
+  
   // Local state for UI elements not managed by global state
   const [currentStepIndex, setCurrentStepIndex] = useState(initialStepIndex);
   const [readyByTime, setReadyByTime] = useState('');
   const [timeRemaining, setTimeRemaining] = useState('');
   const [timerValue, setTimerValue] = useState(0);
 
-  const currentStep = recipe.steps[currentStepIndex];
-  const totalSteps = recipe.steps.length;
+  // Determine which recipe to use
+  useEffect(() => {
+    if (resumeSession && isActive) {
+      // When resuming, we don't have the full recipe object
+      // Create a minimal recipe structure for display
+      setWorkingRecipe({
+        title: rawState?.recipeName || 'Active Recipe',
+        steps: new Array(rawState?.totalSteps || 1).fill(null).map((_, index) => ({
+          id: `step-${index}`,
+          instruction: `Step ${index + 1}`,
+          timing: null,
+          ingredients: []
+        }))
+      });
+    } else if (recipe && recipe.steps) {
+      // Use the provided recipe
+      setWorkingRecipe(recipe);
+    } else {
+      // Fallback - navigate back if no valid recipe
+      console.warn('No valid recipe provided to CookingFlowScreen');
+      navigation.goBack();
+      return;
+    }
+  }, [recipe, resumeSession, isActive, rawState]);
+
+  // Safety check - don't render until we have a working recipe
+  if (!workingRecipe || !workingRecipe.steps) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading recipe...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const currentStep = workingRecipe.steps[currentStepIndex];
+  const totalSteps = workingRecipe.steps.length;
   
   // Initialize cooking session when component mounts
   useEffect(() => {
-    if (!isActive) {
-      startCookingSession(recipe, { startStep: initialStepIndex });
+    if (!isActive && !resumeSession && workingRecipe) {
+      startCookingSession(workingRecipe, { startStep: initialStepIndex });
     }
-  }, []);
+  }, [workingRecipe]);
   
   // Sync local step index with global cooking context
   useEffect(() => {
@@ -295,7 +336,7 @@ export default function CookingFlowScreen({ route, navigation }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.recipeTitle}>{recipe.title}</Text>
+        <Text style={styles.recipeTitle}>{workingRecipe.title}</Text>
       </View>
 
       {/* Ready By Info */}
@@ -607,5 +648,15 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     opacity: 0.5,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingText: {
+    ...typography.body,
+    color: colors.textSecondary,
   },
 });
