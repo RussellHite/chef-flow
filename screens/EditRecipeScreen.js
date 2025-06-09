@@ -328,18 +328,84 @@ export default function EditRecipeScreen({ route, navigation }) {
         }
       }
 
-      // Only update step content for existing steps, don't interfere with step creation
+      // Schedule a comprehensive step content update after ingredient change
       if (updatedIngredient) {
-        try {
-          updateStepsWithIngredient(ingredient, updatedIngredient);
-        } catch (stepError) {
-          console.warn('Error updating steps with ingredient:', stepError);
-        }
+        // Use a debounced update to handle multiple rapid changes
+        clearTimeout(window.stepUpdateTimeout);
+        window.stepUpdateTimeout = setTimeout(() => {
+          try {
+            updateAllStepsContent();
+          } catch (stepError) {
+            console.warn('Error updating steps content:', stepError);
+          }
+        }, 200); // 200ms delay to batch multiple changes
       }
     } catch (error) {
       console.error('Error in handleIngredientEdit:', error);
       Alert.alert('Error', 'Failed to update ingredient. Please try again.');
     }
+  };
+
+  const updateAllStepsContent = () => {
+    setEditedRecipe(prev => {
+      if (!prev.steps || !ingredients) return prev;
+      
+      // Track which ingredients have been mentioned in which steps
+      const ingredientMentions = new Map(); // ingredientName -> first step index
+      
+      const updatedSteps = prev.steps.map((step, stepIndex) => {
+        let updatedContent = step.content;
+        
+        // Process each ingredient to see if it's mentioned in this step
+        ingredients.forEach(ingredient => {
+          if (!ingredient.structured?.ingredient?.name) return;
+          
+          const ingredientName = ingredient.structured.ingredient.name;
+          const regex = new RegExp(`\\b${ingredientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+          
+          if (regex.test(updatedContent)) {
+            const isFirstMention = !ingredientMentions.has(ingredientName);
+            
+            if (isFirstMention) {
+              // Mark as mentioned and build full spec
+              ingredientMentions.set(ingredientName, stepIndex);
+              
+              // Build amount + unit + name
+              let simpleSpec = '';
+              const quantity = ingredient.structured.quantity;
+              const unit = ingredient.structured.unit;
+              
+              if (quantity !== null && quantity !== undefined) {
+                simpleSpec += quantity + ' ';
+              }
+              
+              if (unit) {
+                const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
+                simpleSpec += unitName + ' ';
+              }
+              
+              simpleSpec += ingredientName;
+              
+              // Only replace if we don't already have the full spec
+              if (!updatedContent.includes(simpleSpec.trim())) {
+                updatedContent = updatedContent.replace(regex, simpleSpec.trim());
+              }
+            }
+            // For subsequent mentions, leave as just the ingredient name (no change needed)
+          }
+        });
+        
+        return {
+          ...step,
+          content: updatedContent
+        };
+      });
+      
+      return {
+        ...prev,
+        steps: updatedSteps
+      };
+    });
   };
 
   const updateStepsWithIngredient = (originalIngredient, updatedIngredient) => {
@@ -373,6 +439,9 @@ export default function EditRecipeScreen({ route, navigation }) {
     // Track which steps have already mentioned this ingredient
     const usedInSteps = new Set();
     
+    // Store the updated steps separately to avoid intermediate state issues
+    const updatedSteps = [];
+    
     setEditedRecipe(prev => ({
       ...prev,
       steps: prev.steps.map((step, stepIndex) => {
@@ -388,26 +457,40 @@ export default function EditRecipeScreen({ route, navigation }) {
             // Update step content to show amount on first mention
             let updatedContent = step.content;
             if (originalName && originalName.length > 2) {
-              const regex = new RegExp(`\\b${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+              const ingredientRegex = new RegExp(`\\b${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
               
-              // Check if step content already contains the specific amount + unit + ingredient combination
-              const simpleSpecTrimmed = simpleSpec.trim();
-              const alreadyHasThisAmount = updatedContent.includes(simpleSpecTrimmed);
-              
-              // Also check for any amount pattern before this ingredient name
-              const beforeIngredientPattern = new RegExp(`\\d+\\s*[a-zA-Z]*\\s*${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
-              const hasAnyAmountForThisIngredient = beforeIngredientPattern.test(updatedContent);
-              
-              if (isFirstMention && !alreadyHasThisAmount && !hasAnyAmountForThisIngredient) {
-                // First mention: show full amount + unit + name (only if not already present)
-                updatedContent = updatedContent.replace(regex, simpleSpecTrimmed);
-              } else if (!isFirstMention) {
-                // Subsequent mentions: show just ingredient name
-                const justName = updatedIngredient.structured?.ingredient?.name || originalName;
-                // Only replace if we're not replacing an amount specification
-                if (!hasAnyAmountForThisIngredient) {
-                  updatedContent = updatedContent.replace(regex, justName);
+              // Check if this ingredient appears in the step content
+              if (ingredientRegex.test(updatedContent)) {
+                const simpleSpecTrimmed = simpleSpec.trim();
+                
+                // More comprehensive duplicate detection
+                const hasExactSpec = updatedContent.includes(simpleSpecTrimmed);
+                
+                // Check for any number followed by units followed by this ingredient
+                const quantityPattern = new RegExp(`\\d+(?:\\.\\d+)?(?:\\s*[-/]\\s*\\d+(?:\\.\\d+)?)?`, 'g');
+                const unitPattern = `(?:cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|pinch|sprigs?|cans?|packages?)`;
+                const amountBeforeIngredient = new RegExp(`\\d+[^.!?]*?${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+                
+                const alreadyHasAmount = hasExactSpec || amountBeforeIngredient.test(updatedContent);
+                
+                console.log('Duplicate check for', originalName, ':', {
+                  stepContent: updatedContent,
+                  simpleSpec: simpleSpecTrimmed,
+                  hasExactSpec,
+                  alreadyHasAmount,
+                  isFirstMention
+                });
+                
+                if (isFirstMention && !alreadyHasAmount) {
+                  // First mention: replace plain ingredient name with amount + unit + name
+                  updatedContent = updatedContent.replace(ingredientRegex, simpleSpecTrimmed);
+                  console.log('Replaced with amount:', updatedContent);
+                } else if (!isFirstMention && !alreadyHasAmount) {
+                  // Subsequent mentions: ensure just ingredient name (no change needed if already plain)
+                  const justName = updatedIngredient.structured?.ingredient?.name || originalName;
+                  updatedContent = updatedContent.replace(ingredientRegex, justName);
                 }
+                // If alreadyHasAmount is true, don't modify the content
               }
             }
             
