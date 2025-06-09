@@ -38,6 +38,7 @@ export default function EditRecipeScreen({ route, navigation }) {
   );
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('flow');
+  const [originalStepContent, setOriginalStepContent] = useState(new Map());
 
   useEffect(() => {
     navigation.setOptions({
@@ -53,7 +54,16 @@ export default function EditRecipeScreen({ route, navigation }) {
         </TouchableOpacity>
       ) : undefined,
     });
-  }, [navigation, isNew, fromHome]);
+    
+    // Store original step content on first load
+    if (editedRecipe.steps && originalStepContent.size === 0) {
+      const originalContent = new Map();
+      editedRecipe.steps.forEach(step => {
+        originalContent.set(step.id, step.content);
+      });
+      setOriginalStepContent(originalContent);
+    }
+  }, [navigation, isNew, fromHome, editedRecipe.steps, originalStepContent.size]);
 
   // Sync ingredients with main recipe and apply tracking if needed
   useEffect(() => {
@@ -183,6 +193,13 @@ export default function EditRecipeScreen({ route, navigation }) {
       timing: null,
       ingredients: [ingredientId],
     };
+
+    // Store the original content for this new step
+    setOriginalStepContent(prev => {
+      const updated = new Map(prev);
+      updated.set(newStep.id, stepContent);
+      return updated;
+    });
 
     setEditedRecipe(prev => ({
       ...prev,
@@ -348,13 +365,19 @@ export default function EditRecipeScreen({ route, navigation }) {
 
   const updateAllStepsContent = () => {
     setEditedRecipe(prev => {
-      if (!prev.steps || !ingredients) return prev;
+      if (!prev.steps || !ingredients || originalStepContent.size === 0) return prev;
       
-      // Track which ingredients have been mentioned in which steps
+      console.log('Updating all steps content from original...');
+      
+      // Track which ingredients have been mentioned
       const ingredientMentions = new Map(); // ingredientName -> first step index
       
       const updatedSteps = prev.steps.map((step, stepIndex) => {
-        let updatedContent = step.content;
+        // Always start from the original content to prevent accumulation
+        const originalContent = originalStepContent.get(step.id) || step.content;
+        let updatedContent = originalContent;
+        
+        console.log(`Processing step ${stepIndex + 1}: "${originalContent}"`);
         
         // Process each ingredient to see if it's mentioned in this step
         ingredients.forEach(ingredient => {
@@ -365,6 +388,8 @@ export default function EditRecipeScreen({ route, navigation }) {
           
           if (regex.test(updatedContent)) {
             const isFirstMention = !ingredientMentions.has(ingredientName);
+            
+            console.log(`Found "${ingredientName}" in step ${stepIndex + 1}, first mention: ${isFirstMention}`);
             
             if (isFirstMention) {
               // Mark as mentioned and build full spec
@@ -386,12 +411,11 @@ export default function EditRecipeScreen({ route, navigation }) {
               
               simpleSpec += ingredientName;
               
-              // Only replace if we don't already have the full spec
-              if (!updatedContent.includes(simpleSpec.trim())) {
-                updatedContent = updatedContent.replace(regex, simpleSpec.trim());
-              }
+              // Replace with full specification
+              updatedContent = updatedContent.replace(regex, simpleSpec.trim());
+              console.log(`Replaced with: "${simpleSpec.trim()}", result: "${updatedContent}"`);
             }
-            // For subsequent mentions, leave as just the ingredient name (no change needed)
+            // For subsequent mentions, leave as just the ingredient name (no replacement needed)
           }
         });
         
