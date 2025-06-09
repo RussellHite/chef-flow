@@ -1,5 +1,6 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { View } from 'react-native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,8 @@ import VectorDemo from '../components/VectorDemo';
 import CookingSessionDemo from '../components/CookingSessionDemo';
 import CookingSessionTest from '../components/CookingSessionTest';
 import CookingContextTest from '../components/CookingContextTest';
+import CookingIndicator from '../components/CookingIndicator';
+import CookingIndicatorDemo from '../components/CookingIndicatorDemo';
 import { colors } from '../styles/colors';
 
 const Tab = createBottomTabNavigator();
@@ -114,6 +117,11 @@ function AdminStack() {
         component={CookingContextTest}
         options={{ title: 'Context Debug Test' }}
       />
+      <Stack.Screen 
+        name="IndicatorDemo" 
+        component={CookingIndicatorDemo}
+        options={{ title: 'Cooking Indicator Demo' }}
+      />
     </Stack.Navigator>
   );
 }
@@ -190,10 +198,22 @@ function TabNavigator() {
   );
 }
 
+// Wrapper component that has access to navigation context
+function AppContent() {
+  const navigation = useNavigation();
+  
+  return (
+    <View style={{ flex: 1 }}>
+      <TabNavigator />
+      <CookingIndicator navigation={navigation} />
+    </View>
+  );
+}
+
 export default function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
-      <TabNavigator />
+      <AppContent />
     </NavigationContainer>
   );
 }

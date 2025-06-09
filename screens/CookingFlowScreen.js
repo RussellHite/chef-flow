@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
 import TimerService from '../services/TimerService';
-import { useCookingSessionSimple } from '../hooks/useCookingSessionSimple';
+import { useCookingSession } from '../hooks/useCookingSession';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
@@ -18,12 +18,19 @@ import { commonStyles } from '../styles/common';
 export default function CookingFlowScreen({ route, navigation }) {
   const { recipe, initialStepIndex = 0 } = route.params;
   
-  // Use simplified cooking session for debugging
-  const { isActive, error: cookingError } = useCookingSessionSimple();
-  
-  if (cookingError) {
-    console.error('CookingFlowScreen - Cooking session error:', cookingError);
-  }
+  // Use global cooking session management
+  const {
+    isActive,
+    startCookingSession,
+    endCookingSession,
+    currentStepIndex: globalStepIndex,
+    goToStepIndex,
+    nextStep,
+    previousStep,
+    canGoNext,
+    canGoPrevious,
+    isFinalStep
+  } = useCookingSession();
   
   // Local state for UI elements not managed by global state
   const [currentStepIndex, setCurrentStepIndex] = useState(initialStepIndex);
@@ -34,11 +41,19 @@ export default function CookingFlowScreen({ route, navigation }) {
   const currentStep = recipe.steps[currentStepIndex];
   const totalSteps = recipe.steps.length;
   
-  // Simplified for debugging - just use local state for now
+  // Initialize cooking session when component mounts
   useEffect(() => {
-    console.log('CookingFlowScreen initialized with recipe:', recipe.title);
-    console.log('Active cooking session:', isActive);
-  }, [recipe, isActive]);
+    if (!isActive) {
+      startCookingSession(recipe, { startStep: initialStepIndex });
+    }
+  }, []);
+  
+  // Sync local step index with global cooking context
+  useEffect(() => {
+    if (isActive && globalStepIndex !== currentStepIndex) {
+      setCurrentStepIndex(globalStepIndex);
+    }
+  }, [globalStepIndex, isActive]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -52,6 +67,7 @@ export default function CookingFlowScreen({ route, navigation }) {
         <TouchableOpacity 
           onPress={async () => {
             await TimerService.clearAllTimers();
+            endCookingSession(false); // End session without saving to history
             navigation.goBack();
           }} 
           style={styles.headerButton}
@@ -167,17 +183,29 @@ export default function CookingFlowScreen({ route, navigation }) {
   const [activeTimers, setActiveTimers] = useState([]);
 
   const handlePreviousStep = () => {
-    if (currentStepIndex > 0) {
+    if (isActive && canGoPrevious) {
+      previousStep();
+    } else if (!isActive && currentStepIndex > 0) {
       setCurrentStepIndex(currentStepIndex - 1);
     }
   };
 
   const handleNextStep = () => {
-    if (currentStepIndex < totalSteps - 1) {
-      setCurrentStepIndex(currentStepIndex + 1);
+    if (isActive) {
+      if (isFinalStep) {
+        // Recipe completed - end session and navigate
+        endCookingSession(true);
+        navigation.navigate('Home');
+      } else if (canGoNext) {
+        nextStep();
+      }
     } else {
-      // Recipe completed
-      navigation.navigate('Home');
+      // Fallback to local state management
+      if (currentStepIndex < totalSteps - 1) {
+        setCurrentStepIndex(currentStepIndex + 1);
+      } else {
+        navigation.navigate('Home');
+      }
     }
   };
 
@@ -391,14 +419,14 @@ export default function CookingFlowScreen({ route, navigation }) {
           style={[
             styles.navButton, 
             styles.secondaryButton,
-            currentStepIndex === 0 ? styles.disabledButton : {}
+            (!canGoPrevious && isActive) || (!isActive && currentStepIndex === 0) ? styles.disabledButton : {}
           ]}
-          disabled={currentStepIndex === 0}
+          disabled={(!canGoPrevious && isActive) || (!isActive && currentStepIndex === 0)}
         >
           <Text style={[
             styles.navButtonText, 
             styles.secondaryButtonText,
-            currentStepIndex === 0 ? styles.disabledText : {}
+            (!canGoPrevious && isActive) || (!isActive && currentStepIndex === 0) ? styles.disabledText : {}
           ]}>
             Previous Step
           </Text>
@@ -409,7 +437,7 @@ export default function CookingFlowScreen({ route, navigation }) {
           style={[styles.navButton, styles.primaryButton]}
         >
           <Text style={[styles.navButtonText, styles.primaryButtonText]}>
-            {currentStepIndex === totalSteps - 1 ? 'Finish' : 'Next Step'}
+            {(isFinalStep && isActive) || (!isActive && currentStepIndex === totalSteps - 1) ? 'Finish' : 'Next Step'}
           </Text>
         </TouchableOpacity>
       </View>

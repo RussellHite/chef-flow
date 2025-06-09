@@ -338,16 +338,27 @@ const CookingContext = createContext();
  */
 export function CookingProvider({ children }) {
   const [cookingState, dispatch] = useReducer(cookingReducer, initialCookingState);
+  
+  // Debug logging
+  console.log('CookingProvider rendering, cookingState:', typeof cookingState, cookingState ? 'defined' : 'undefined');
 
   // Auto-save state to AsyncStorage when it changes
   useEffect(() => {
     const saveState = async () => {
       try {
-        if (cookingState.isActiveCookingSession) {
-          await AsyncStorage.setItem(COOKING_SESSION_STORAGE_KEY, JSON.stringify(cookingState));
-        } else {
-          // Clear storage when no active session
-          await AsyncStorage.removeItem(COOKING_SESSION_STORAGE_KEY);
+        // Add defensive check for cookingState
+        if (cookingState && typeof cookingState === 'object') {
+          if (cookingState.isActiveCookingSession) {
+            try {
+              const serializedState = JSON.stringify(cookingState);
+              await AsyncStorage.setItem(COOKING_SESSION_STORAGE_KEY, serializedState);
+            } catch (serializeError) {
+              console.warn('Failed to serialize cooking state:', serializeError);
+            }
+          } else {
+            // Clear storage when no active session
+            await AsyncStorage.removeItem(COOKING_SESSION_STORAGE_KEY);
+          }
         }
       } catch (error) {
         console.warn('Failed to save cooking session:', error);
@@ -390,7 +401,7 @@ export function CookingProvider({ children }) {
 
   const contextValue = {
     // State
-    cookingState,
+    cookingState: cookingState || initialCookingState,
     
     // Quick access getters with fallbacks
     isActiveCookingSession: cookingState?.isActiveCookingSession || false,
@@ -398,63 +409,77 @@ export function CookingProvider({ children }) {
     currentStep: cookingState?.currentStep || 0,
     totalSteps: cookingState?.totalSteps || 0,
     recipeName: cookingState?.recipeName || '',
-    timer: cookingState?.timer || {},
+    timer: cookingState?.timer || initialCookingState.timer,
     
     // Actions
     dispatch,
     
     // Convenience action creators (optional - can use dispatch directly)
     startCooking: (recipe, options = {}) => {
-      dispatch({
-        type: COOKING_ACTIONS.START_COOKING,
-        payload: {
-          recipe,
-          recipeId: recipe.id || options.recipeId,
-          recipeName: recipe.title || options.recipeName,
-          totalSteps: recipe.steps?.length || options.totalSteps,
-          startStep: options.startStep
-        }
-      });
+      if (dispatch && typeof dispatch === 'function') {
+        dispatch({
+          type: COOKING_ACTIONS.START_COOKING,
+          payload: {
+            recipe: recipe || {},
+            recipeId: recipe?.id || options.recipeId,
+            recipeName: recipe?.title || options.recipeName,
+            totalSteps: recipe?.steps?.length || options.totalSteps,
+            startStep: options.startStep
+          }
+        });
+      }
     },
     
     endCooking: () => {
-      dispatch({ type: COOKING_ACTIONS.END_COOKING });
+      if (dispatch && typeof dispatch === 'function') {
+        dispatch({ type: COOKING_ACTIONS.END_COOKING });
+      }
     },
     
     goToStep: (stepIndex) => {
-      dispatch({
-        type: COOKING_ACTIONS.GO_TO_STEP,
-        payload: { stepIndex }
-      });
+      if (dispatch && typeof dispatch === 'function') {
+        dispatch({
+          type: COOKING_ACTIONS.GO_TO_STEP,
+          payload: { stepIndex }
+        });
+      }
     },
     
     nextStep: () => {
-      dispatch({
-        type: COOKING_ACTIONS.UPDATE_STEP,
-        payload: { direction: 'next' }
-      });
+      if (dispatch && typeof dispatch === 'function') {
+        dispatch({
+          type: COOKING_ACTIONS.UPDATE_STEP,
+          payload: { direction: 'next' }
+        });
+      }
     },
     
     previousStep: () => {
-      dispatch({
-        type: COOKING_ACTIONS.UPDATE_STEP,
-        payload: { direction: 'previous' }
-      });
+      if (dispatch && typeof dispatch === 'function') {
+        dispatch({
+          type: COOKING_ACTIONS.UPDATE_STEP,
+          payload: { direction: 'previous' }
+        });
+      }
     },
     
     startTimer: (duration, options = {}) => {
-      dispatch({
-        type: COOKING_ACTIONS.START_TIMER,
-        payload: {
-          stepId: options.stepId,
-          stepName: options.stepName,
-          duration
-        }
-      });
+      if (dispatch && typeof dispatch === 'function') {
+        dispatch({
+          type: COOKING_ACTIONS.START_TIMER,
+          payload: {
+            stepId: options.stepId,
+            stepName: options.stepName,
+            duration
+          }
+        });
+      }
     },
     
     stopTimer: () => {
-      dispatch({ type: COOKING_ACTIONS.STOP_TIMER });
+      if (dispatch && typeof dispatch === 'function') {
+        dispatch({ type: COOKING_ACTIONS.STOP_TIMER });
+      }
     }
   };
 
@@ -467,13 +492,31 @@ export function CookingProvider({ children }) {
 
 /**
  * Custom hook to use cooking context
- * Throws error if used outside of CookingProvider
+ * Provides safe access with fallbacks
  */
 export function useCooking() {
   const context = useContext(CookingContext);
   
   if (!context) {
-    throw new Error('useCooking must be used within a CookingProvider. Make sure your component is wrapped with CookingProvider.');
+    console.warn('useCooking: Context not available, returning default values');
+    // Return safe default values instead of throwing
+    return {
+      cookingState: initialCookingState,
+      dispatch: () => console.warn('CookingContext dispatch not available'),
+      isActiveCookingSession: false,
+      activeRecipe: null,
+      currentStep: 0,
+      totalSteps: 0,
+      recipeName: '',
+      timer: initialCookingState.timer,
+      startCooking: () => false,
+      endCooking: () => false,
+      goToStep: () => false,
+      nextStep: () => false,
+      previousStep: () => false,
+      startTimer: () => false,
+      stopTimer: () => false
+    };
   }
   
   return context;

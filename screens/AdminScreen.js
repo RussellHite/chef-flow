@@ -86,6 +86,13 @@ export default function AdminScreen({ navigation }) {
       icon: 'bug',
       onPress: () => navigation.navigate('ContextTest'),
     },
+    {
+      id: 'indicator-demo',
+      title: 'Cooking Indicator Demo',
+      description: 'Test sticky cooking progress indicator (Issue #7)',
+      icon: 'analytics',
+      onPress: () => navigation.navigate('IndicatorDemo'),
+    },
   ];
 
   const renderAdminCard = (page) => (

@@ -15,23 +15,65 @@ import {
 } from '../utils/cookingSessionUtils';
 
 /**
+ * Default session values for fallback
+ */
+function getDefaultSessionValues() {
+  return {
+    isActive: false,
+    activeRecipe: null,
+    recipeName: '',
+    currentStep: 1,
+    currentStepIndex: 0,
+    totalSteps: 0,
+    timer: {
+      isActive: false,
+      isPaused: false,
+      remainingTime: 0,
+      duration: 0
+    },
+    sessionSummary: null,
+    progress: 0,
+    canGoNext: false,
+    canGoPrevious: false,
+    isFinalStep: false,
+    startCookingSession: () => false,
+    endCookingSession: () => false,
+    goToStep: () => false,
+    goToStepIndex: () => false,
+    nextStep: () => false,
+    previousStep: () => false,
+    startStepTimer: () => false,
+    stopStepTimer: () => false,
+    toggleTimer: () => false,
+    rawState: {}
+  };
+}
+
+/**
  * Custom hook for cooking session management
  * @returns {Object} - Cooking session state and operations
  */
 export function useCookingSession() {
-  const context = useCooking();
-  
-  // Defensive destructuring with fallbacks
-  const {
-    cookingState = {},
-    dispatch,
-    isActiveCookingSession = false,
-    activeRecipe = null,
-    currentStep = 0,
-    totalSteps = 0,
-    recipeName = '',
-    timer = {}
-  } = context || {};
+  try {
+    const context = useCooking();
+    
+    // Ensure context exists and has expected structure
+    if (!context || typeof context !== 'object') {
+      console.warn('useCookingSession: Invalid context, using defaults');
+      return getDefaultSessionValues();
+    }
+    
+    // Defensive destructuring with fallbacks
+    const {
+      cookingState = {},
+      dispatch = () => {},
+      isActiveCookingSession = false,
+      activeRecipe = null,
+      currentStep = 0,
+      totalSteps = 0,
+      recipeName = '',
+      timer = {}
+    } = context || {};
 
   const timerIntervalRef = useRef(null);
   const autoSaveIntervalRef = useRef(null);
@@ -311,39 +353,43 @@ export function useCookingSession() {
    */
   const isFinalStep = currentStep === totalSteps - 1;
 
-  return {
-    // State
-    isActive: isActiveCookingSession,
-    activeRecipe,
-    recipeName,
-    currentStep: currentStep + 1, // Convert to 1-based for display
-    currentStepIndex: currentStep, // Keep 0-based for programming
-    totalSteps,
-    timer,
-    sessionSummary,
-    
-    // Computed values
-    progress: getProgress(),
-    canGoNext,
-    canGoPrevious,
-    isFinalStep,
-    
-    // Actions
-    startCookingSession,
-    endCookingSession,
-    goToStep: (stepNumber) => goToStep(stepNumber - 1), // Convert from 1-based to 0-based
-    goToStepIndex: goToStep, // Use 0-based index directly
-    nextStep,
-    previousStep,
-    
-    // Timer actions
-    startStepTimer,
-    stopStepTimer,
-    toggleTimer,
-    
-    // Raw state for advanced usage
-    rawState: cookingState
-  };
+    return {
+      // State
+      isActive: isActiveCookingSession,
+      activeRecipe,
+      recipeName,
+      currentStep: currentStep + 1, // Convert to 1-based for display
+      currentStepIndex: currentStep, // Keep 0-based for programming
+      totalSteps,
+      timer,
+      sessionSummary,
+      
+      // Computed values
+      progress: getProgress(),
+      canGoNext,
+      canGoPrevious,
+      isFinalStep,
+      
+      // Actions
+      startCookingSession,
+      endCookingSession,
+      goToStep: (stepNumber) => goToStep(stepNumber - 1), // Convert from 1-based to 0-based
+      goToStepIndex: goToStep, // Use 0-based index directly
+      nextStep,
+      previousStep,
+      
+      // Timer actions
+      startStepTimer,
+      stopStepTimer,
+      toggleTimer,
+      
+      // Raw state for advanced usage
+      rawState: cookingState
+    };
+  } catch (error) {
+    console.error('useCookingSession error:', error);
+    return getDefaultSessionValues();
+  }
 }
 
 export default useCookingSession;

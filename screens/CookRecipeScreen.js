@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
 import StructuredIngredient from '../components/StructuredIngredient';
-import { useCookingSessionSimple } from '../hooks/useCookingSessionSimple';
+import { useCookingSession } from '../hooks/useCookingSession';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
@@ -21,12 +21,7 @@ export default function CookRecipeScreen({ route, navigation }) {
   const [readyByTime, setReadyByTime] = useState('');
   
   // Get cooking session state
-  const { isActive, recipeName, error } = useCookingSessionSimple();
-  
-  // Log any errors for debugging
-  if (error) {
-    console.error('CookRecipeScreen - Cooking session error:', error);
-  }
+  const { isActive, recipeName, endCookingSession } = useCookingSession();
 
   useEffect(() => {
     navigation.setOptions({
@@ -68,20 +63,31 @@ export default function CookRecipeScreen({ route, navigation }) {
   };
 
   const handleLetsCook = () => {
-    // Simplified for debugging - just navigate to cooking flow
+    // Check if there's already an active cooking session for a different recipe
     if (isActive && recipeName !== recipe.title) {
       Alert.alert(
         'Active Cooking Session',
-        `You're currently cooking "${recipeName}". Starting a new recipe will end the current session.`,
+        `You're currently cooking "${recipeName}". Would you like to end that session and start cooking "${recipe.title}"?`,
         [
           { text: 'Cancel', style: 'cancel' },
           { 
-            text: 'Start New Recipe', 
-            onPress: () => navigation.navigate('CookingFlow', { recipe })
+            text: 'End & Start New', 
+            style: 'destructive',
+            onPress: () => {
+              endCookingSession(false); // End without saving to history
+              navigation.navigate('CookingFlow', { recipe });
+            }
+          },
+          {
+            text: 'Continue Current',
+            onPress: () => {
+              navigation.navigate('CookingFlow', { recipe: { title: recipeName } });
+            }
           }
         ]
       );
     } else {
+      // No active session or same recipe
       navigation.navigate('CookingFlow', { recipe });
     }
   };
