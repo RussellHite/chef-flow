@@ -390,16 +390,24 @@ export default function EditRecipeScreen({ route, navigation }) {
             if (originalName && originalName.length > 2) {
               const regex = new RegExp(`\\b${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
               
-              // Check if step content already contains amounts (to prevent duplicates)
-              const alreadyHasAmount = /\d+\s*(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|pinch|sprigs?)\s+/i.test(updatedContent);
+              // Check if step content already contains the specific amount + unit + ingredient combination
+              const simpleSpecTrimmed = simpleSpec.trim();
+              const alreadyHasThisAmount = updatedContent.includes(simpleSpecTrimmed);
               
-              if (isFirstMention && !alreadyHasAmount) {
+              // Also check for any amount pattern before this ingredient name
+              const beforeIngredientPattern = new RegExp(`\\d+\\s*[a-zA-Z]*\\s*${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+              const hasAnyAmountForThisIngredient = beforeIngredientPattern.test(updatedContent);
+              
+              if (isFirstMention && !alreadyHasThisAmount && !hasAnyAmountForThisIngredient) {
                 // First mention: show full amount + unit + name (only if not already present)
-                updatedContent = updatedContent.replace(regex, simpleSpec.trim());
+                updatedContent = updatedContent.replace(regex, simpleSpecTrimmed);
               } else if (!isFirstMention) {
                 // Subsequent mentions: show just ingredient name
                 const justName = updatedIngredient.structured?.ingredient?.name || originalName;
-                updatedContent = updatedContent.replace(regex, justName);
+                // Only replace if we're not replacing an amount specification
+                if (!hasAnyAmountForThisIngredient) {
+                  updatedContent = updatedContent.replace(regex, justName);
+                }
               }
             }
             
