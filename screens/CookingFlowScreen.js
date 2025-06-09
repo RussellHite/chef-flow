@@ -68,19 +68,7 @@ export default function CookingFlowScreen({ route, navigation }) {
     }
   }, [recipe, resumeSession, isActive, rawState]);
 
-  // Safety check - don't render until we have a working recipe
-  if (!workingRecipe || !workingRecipe.steps) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading recipe...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const currentStep = workingRecipe.steps[currentStepIndex];
-  const totalSteps = workingRecipe.steps.length;
+  // These will be calculated inside the render when workingRecipe is available
   
   // Initialize cooking session when component mounts
   useEffect(() => {
@@ -331,6 +319,21 @@ export default function CookingFlowScreen({ route, navigation }) {
     // If no sentences were found (no punctuation), return the original text
     return sentences.length > 0 ? sentences : [text];
   };
+
+  // Safety check - don't render until we have a working recipe
+  if (!workingRecipe || !workingRecipe.steps) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading recipe...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Calculate current step and total steps when workingRecipe is available
+  const currentStep = workingRecipe.steps[currentStepIndex];
+  const totalSteps = workingRecipe.steps.length;
 
   return (
     <SafeAreaView style={styles.container}>
