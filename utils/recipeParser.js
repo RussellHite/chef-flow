@@ -30,6 +30,13 @@ const DIVIDED_REGEX = /,?\s*(divided|split)\s*$/gi;
 import ingredientService from '../services/ingredientServiceInstance.js';
 
 /**
+ * Escape special regex characters in a string
+ */
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Process ingredients text into structured ingredient objects
  * @param {string} ingredientsText - Raw ingredients text from input field
  * @returns {Promise<Array>} Array of structured ingredient objects
@@ -103,10 +110,10 @@ export async function parseRecipe(title, content, ingredientsText = '') {
   // Parse content into logical steps
   const rawSteps = parseSteps(cleanContent);
   
-  // Process steps with intelligent parsing
+  // Process steps with intelligent parsing, linking to ingredient IDs
   const processedSteps = [];
   rawSteps.forEach((step, index) => {
-    const result = processStep(step, index, ingredientMap);
+    const result = processStep(step, index, ingredientMap, ingredientsList);
     if (Array.isArray(result)) {
       processedSteps.push(...result);
     } else {
@@ -115,7 +122,7 @@ export async function parseRecipe(title, content, ingredientsText = '') {
   });
   
   // Add prep steps for ingredients with embedded actions
-  const prepSteps = generatePrepSteps(ingredientMap);
+  const prepSteps = generatePrepSteps(ingredientMap, ingredientsList);
   
   // Combine prep steps with cooking steps
   const allSteps = [...prepSteps, ...processedSteps];
@@ -123,8 +130,11 @@ export async function parseRecipe(title, content, ingredientsText = '') {
   // Handle divided ingredients
   const stepsWithDividedIngredients = distributeDividedIngredients(allSteps, ingredientMap);
   
-  // Deduplicate ingredients across steps
-  const deduplicatedSteps = deduplicateIngredients(stepsWithDividedIngredients);
+  // Deduplicate ingredients across steps with enhanced tracking
+  const deduplicatedSteps = deduplicateIngredients(stepsWithDividedIngredients, ingredientsList);
+  
+  // Build ingredient tracker for the recipe
+  const ingredientTracker = buildIngredientTracker(deduplicatedSteps, ingredientsList);
   
   // Extract timing information
   const totalTime = calculateTotalTime(deduplicatedSteps);
@@ -138,6 +148,7 @@ export async function parseRecipe(title, content, ingredientsText = '') {
     servings: extractServings(cleanContent),
     createdAt: new Date().toISOString(),
     ingredients: ingredientsList,
+    ingredientTracker,
   };
 }
 
@@ -259,17 +270,44 @@ function parseSteps(content) {
 /**
  * Process individual step with intelligent parsing
  */
-function processStep(stepContent, index, ingredientMap) {
+function processStep(stepContent, index, ingredientMap, ingredientsList = []) {
   let processedContent = stepContent;
   const stepIngredients = [];
   
-  // Replace ingredient references with full specifications
-  Object.keys(ingredientMap).forEach(ingredient => {
-    const regex = new RegExp(`\\b${ingredient}\\b`, 'gi');
+  // Find ingredients mentioned in this step and link to ingredient IDs
+  ingredientsList.forEach(ingredient => {
+    const ingredientName = ingredient.structured?.ingredient?.name || 
+                          extractIngredientNameFromSpec(ingredient.displayText || ingredient.originalText);
+    
+    if (!ingredientName) return;
+    
+    const regex = new RegExp(`\\b${escapeRegExp(ingredientName)}\\b`, 'gi');
     if (regex.test(processedContent)) {
-      const fullSpec = `${ingredientMap[ingredient].quantity} ${ingredient}`;
-      stepIngredients.push(fullSpec);
-      processedContent = processedContent.replace(regex, fullSpec);
+      // Add ingredient ID reference instead of text
+      stepIngredients.push(ingredient.id);
+    }
+  });
+  
+  // Also check for ingredients from the ingredient map (for backward compatibility)
+  Object.keys(ingredientMap).forEach(ingredientName => {
+    const regex = new RegExp(`\\b${escapeRegExp(ingredientName)}\\b`, 'gi');
+    if (regex.test(processedContent)) {
+      // Find corresponding ingredient in list
+      const matchingIngredient = ingredientsList.find(ing => {
+        const name = ing.structured?.ingredient?.name || 
+                    extractIngredientNameFromSpec(ing.displayText || ing.originalText);
+        return name && name.toLowerCase() === ingredientName.toLowerCase();
+      });
+      
+      if (matchingIngredient && !stepIngredients.includes(matchingIngredient.id)) {
+        stepIngredients.push(matchingIngredient.id);
+      } else if (!matchingIngredient) {
+        // Fallback to text if no matching ingredient found
+        const fullSpec = `${ingredientMap[ingredientName].quantity} ${ingredientName}`;
+        if (!stepIngredients.includes(fullSpec)) {
+          stepIngredients.push(fullSpec);
+        }
+      }
     }
   });
   
@@ -300,19 +338,26 @@ function processStep(stepContent, index, ingredientMap) {
 /**
  * Generate prep steps for ingredients with embedded actions
  */
-function generatePrepSteps(ingredientMap) {
+function generatePrepSteps(ingredientMap, ingredientsList = []) {
   const prepSteps = [];
   
-  Object.entries(ingredientMap).forEach(([ingredient, data]) => {
+  Object.entries(ingredientMap).forEach(([ingredientName, data]) => {
     if (data.prepActions.length > 0) {
+      // Find corresponding ingredient in list
+      const matchingIngredient = ingredientsList.find(ing => {
+        const name = ing.structured?.ingredient?.name || 
+                    extractIngredientNameFromSpec(ing.displayText || ing.originalText);
+        return name && name.toLowerCase() === ingredientName.toLowerCase();
+      });
+      
       const action = data.prepActions[0]; // Use first action found
-      const stepContent = `${capitalizeFirst(action)} ${data.quantity} ${ingredient}`;
+      const stepContent = `${capitalizeFirst(action)} ${data.quantity} ${ingredientName}`;
       
       prepSteps.push({
-        id: `prep_${Date.now()}_${ingredient.replace(/\s+/g, '_')}`,
+        id: `prep_${Date.now()}_${ingredientName.replace(/\s+/g, '_')}`,
         content: stepContent,
         timing: null,
-        ingredients: [`${data.quantity} ${ingredient}`],
+        ingredients: matchingIngredient ? [matchingIngredient.id] : [`${data.quantity} ${ingredientName}`],
         isPrep: true,
       });
     }
@@ -469,38 +514,110 @@ function convertToFraction(decimal) {
 
 /**
  * Remove duplicate ingredients across steps - show full amount only in first mention
+ * Enhanced to support both text-based and ID-based ingredients
  */
-function deduplicateIngredients(steps) {
+function deduplicateIngredients(steps, ingredientsList = []) {
   const usedIngredients = new Map(); // Track ingredient name -> first occurrence info
   
-  return steps.map(step => {
-    const ingredients = step.ingredients || [];
-    const processedIngredients = [];
+  try {
+    if (!steps || !Array.isArray(steps)) {
+      return [];
+    }
     
-    ingredients.forEach(ingredientSpec => {
-      // Extract ingredient name from full specification (e.g., "2 cups flour" -> "flour")
-      const ingredientName = extractIngredientNameFromSpec(ingredientSpec);
-      const lowerKey = ingredientName.toLowerCase();
-      
-      if (usedIngredients.has(lowerKey)) {
-        // Already used - only show ingredient name, no amount
-        processedIngredients.push(ingredientName);
-      } else {
-        // First occurrence - show full specification with amount
-        // Mark as used so subsequent steps only show ingredient name
-        usedIngredients.set(lowerKey, {
-          firstStep: step.id,
-          isPrep: step.isPrep || false
-        });
-        processedIngredients.push(ingredientSpec);
+    return steps.map(step => {
+      if (!step) {
+        return step;
       }
+      
+      const ingredients = step.ingredients || [];
+      const processedIngredients = [];
+      
+      ingredients.forEach(ingredientSpec => {
+        try {
+          if (!ingredientSpec) {
+            return;
+          }
+          
+          let ingredientName, ingredientId, fullSpec;
+          
+          // Check if this is an ingredient ID reference
+          if (typeof ingredientSpec === 'string' && ingredientSpec.startsWith('ing-')) {
+            // Find the ingredient in the ingredients list
+            const ingredient = Array.isArray(ingredientsList) ? 
+              ingredientsList.find(ing => ing && ing.id === ingredientSpec) : null;
+            if (ingredient) {
+              ingredientId = ingredient.id;
+              ingredientName = ingredient.structured?.ingredient?.name || 
+                              extractIngredientNameFromSpec(ingredient.displayText || ingredient.originalText);
+              fullSpec = ingredient.displayText || ingredient.originalText;
+            } else {
+              // Fallback if ingredient not found
+              processedIngredients.push(ingredientSpec);
+              return;
+            }
+          } else if (typeof ingredientSpec === 'string') {
+            // Text-based ingredient specification
+            ingredientName = extractIngredientNameFromSpec(ingredientSpec);
+            fullSpec = ingredientSpec;
+          } else {
+            // Unknown format - keep as is
+            processedIngredients.push(ingredientSpec);
+            return;
+          }
+          
+          if (!ingredientName) {
+            processedIngredients.push(ingredientSpec);
+            return;
+          }
+          
+          const lowerKey = ingredientName.toLowerCase();
+          
+          if (usedIngredients.has(lowerKey)) {
+            // Already used - store reference with firstMention flag
+            const firstMentionInfo = usedIngredients.get(lowerKey);
+            processedIngredients.push({
+              id: ingredientId || null,
+              text: ingredientName,
+              fullText: fullSpec,
+              isFirstMention: false,
+              firstMentionStepId: firstMentionInfo ? firstMentionInfo.firstStep : null
+            });
+          } else {
+            // First occurrence - show full specification with amount
+            usedIngredients.set(lowerKey, {
+              firstStep: step.id || `step_${Date.now()}`,
+              isPrep: step.isPrep || false,
+              ingredientId: ingredientId
+            });
+            processedIngredients.push({
+              id: ingredientId || null,
+              text: fullSpec,
+              fullText: fullSpec,
+              isFirstMention: true,
+              firstMentionStepId: step.id || `step_${Date.now()}`
+            });
+          }
+        } catch (ingredientError) {
+          console.warn('Error processing ingredient:', ingredientError);
+          // Keep original ingredient spec on error
+          processedIngredients.push(ingredientSpec);
+        }
+      });
+      
+      return {
+        ...step,
+        ingredients: processedIngredients,
+        ingredientTracking: {
+          hasTrackedIngredients: true,
+          trackingVersion: '2.0'
+        }
+      };
     });
-    
-    return {
-      ...step,
-      ingredients: processedIngredients,
-    };
-  });
+  } catch (error) {
+    console.warn('Error in deduplicateIngredients:', error);
+    // Return original steps on error
+    return steps || [];
+  }
 }
 
 /**
@@ -534,6 +651,69 @@ function calculateTotalTime(steps) {
   });
   
   return totalMinutes > 0 ? `${totalMinutes} minutes` : null;
+}
+
+/**
+ * Build ingredient tracker for the recipe
+ * Maps ingredient names/IDs to their first mention location and amount
+ */
+function buildIngredientTracker(steps, ingredientsList) {
+  const tracker = {};
+  
+  try {
+    if (!steps || !Array.isArray(steps)) {
+      return tracker;
+    }
+    
+    steps.forEach((step, stepIndex) => {
+      if (!step || !step.ingredients || !Array.isArray(step.ingredients)) return;
+      
+      step.ingredients.forEach(ingredient => {
+        try {
+          // Handle new ingredient tracking format
+          if (ingredient && typeof ingredient === 'object' && ingredient.isFirstMention) {
+            const key = ingredient.id || (ingredient.text ? ingredient.text.toLowerCase() : `unknown_${stepIndex}`);
+            
+            // Find the original ingredient to get amount info
+            let amount = null;
+            let unit = null;
+            if (ingredient.id && Array.isArray(ingredientsList)) {
+              const originalIngredient = ingredientsList.find(ing => ing && ing.id === ingredient.id);
+              if (originalIngredient?.structured) {
+                amount = originalIngredient.structured.quantity;
+                unit = originalIngredient.structured.unit;
+              }
+            } else if (ingredient.fullText) {
+              // Extract amount from text
+              try {
+                const amountMatch = ingredient.fullText.match(MEASUREMENT_REGEX);
+                if (amountMatch) {
+                  amount = amountMatch[1];
+                  unit = amountMatch[2];
+                }
+              } catch (regexError) {
+                console.warn('Error matching ingredient amount:', regexError);
+              }
+            }
+            
+            tracker[key] = {
+              firstMentionStepId: step.id || `step_${stepIndex}`,
+              stepOrder: stepIndex,
+              amount: amount,
+              unit: unit,
+              fullText: ingredient.fullText || ingredient.text || ''
+            };
+          }
+        } catch (innerError) {
+          console.warn('Error processing ingredient in buildIngredientTracker:', innerError);
+        }
+      });
+    });
+  } catch (error) {
+    console.warn('Error in buildIngredientTracker:', error);
+  }
+  
+  return tracker;
 }
 
 /**

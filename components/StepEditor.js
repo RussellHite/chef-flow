@@ -48,23 +48,51 @@ export default function StepEditor({
     setIsEditing(false);
   };
 
-  const formatIngredients = (stepIngredientIds) => {
-    if (!stepIngredientIds || stepIngredientIds.length === 0 || !ingredients) return null;
+  const formatIngredients = (stepIngredients) => {
+    if (!stepIngredients || stepIngredients.length === 0 || !ingredients) return null;
     
-    return stepIngredientIds.map((ingredientId, index) => {
-      const ingredient = ingredients.find(ing => ing.id === ingredientId);
-      if (!ingredient) return null;
+    return stepIngredients.map((ingredientRef, index) => {
+      let displayText = '';
       
-      const displayName = ingredient.structured?.ingredient?.name || 
-                         ingredient.displayText || 
-                         ingredient.originalText || 
-                         ingredientId;
-      
-      return (
-        <Text key={index} style={styles.ingredient}>
-          • {displayName}
-        </Text>
-      );
+      try {
+        // Handle new ingredient tracking format
+        if (ingredientRef && typeof ingredientRef === 'object' && ingredientRef.text) {
+          // New format with tracking info
+          if (ingredientRef.isFirstMention) {
+            // Show full text with amount on first mention
+            displayText = ingredientRef.text || ingredientRef.fullText || 'Unknown ingredient';
+          } else {
+            // Show only ingredient name on subsequent mentions
+            displayText = ingredientRef.text || 'Unknown ingredient';
+          }
+        } else if (typeof ingredientRef === 'string' && ingredientRef.startsWith('ing-')) {
+          // Legacy format - ingredient ID
+          const ingredient = ingredients.find(ing => ing.id === ingredientRef);
+          if (!ingredient) return null;
+          
+          displayText = ingredient.structured?.ingredient?.name || 
+                       ingredient.displayText || 
+                       ingredient.originalText || 
+                       ingredientRef;
+        } else if (typeof ingredientRef === 'string') {
+          // Text-based ingredient
+          displayText = ingredientRef;
+        } else {
+          // Unknown format - skip
+          return null;
+        }
+        
+        if (!displayText) return null;
+        
+        return (
+          <Text key={index} style={styles.ingredient}>
+            • {displayText}
+          </Text>
+        );
+      } catch (error) {
+        console.warn('Error formatting ingredient:', error);
+        return null;
+      }
     }).filter(Boolean);
   };
 
