@@ -133,17 +133,20 @@ export async function parseRecipe(title, content, ingredientsText = '') {
   // Deduplicate ingredients across steps with enhanced tracking
   const deduplicatedSteps = deduplicateIngredients(stepsWithDividedIngredients, ingredientsList);
   
+  // Update step content with proper ingredient amounts
+  const stepsWithUpdatedContent = updateStepContentWithIngredients(deduplicatedSteps, ingredientsList);
+  
   // Build ingredient tracker for the recipe
-  const ingredientTracker = buildIngredientTracker(deduplicatedSteps, ingredientsList);
+  const ingredientTracker = buildIngredientTracker(stepsWithUpdatedContent, ingredientsList);
   
   // Extract timing information
-  const totalTime = calculateTotalTime(deduplicatedSteps);
+  const totalTime = calculateTotalTime(stepsWithUpdatedContent);
 
   return {
     id: Date.now().toString(),
     title: title.trim(),
     originalContent: content,
-    steps: deduplicatedSteps,
+    steps: stepsWithUpdatedContent,
     totalTime: totalTime,
     servings: extractServings(cleanContent),
     createdAt: new Date().toISOString(),
@@ -589,9 +592,36 @@ function deduplicateIngredients(steps, ingredientsList = []) {
               isPrep: step.isPrep || false,
               ingredientId: ingredientId
             });
+            // Build simple spec for first mention display
+            let simpleSpec = '';
+            if (ingredientId) {
+              const ingredient = Array.isArray(ingredientsList) ? 
+                ingredientsList.find(ing => ing && ing.id === ingredientId) : null;
+              
+              if (ingredient?.structured) {
+                const quantity = ingredient.structured.quantity;
+                const unit = ingredient.structured.unit;
+                
+                // Add quantity if it exists
+                if (quantity !== null && quantity !== undefined) {
+                  simpleSpec += quantity + ' ';
+                }
+                
+                // Add unit if it exists
+                if (unit) {
+                  const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
+                  simpleSpec += unitName + ' ';
+                }
+                
+                // Add ingredient name
+                simpleSpec += ingredientName;
+                simpleSpec = simpleSpec.trim();
+              }
+            }
+            
             processedIngredients.push({
               id: ingredientId || null,
-              text: fullSpec,
+              text: simpleSpec || fullSpec,
               fullText: fullSpec,
               isFirstMention: true,
               firstMentionStepId: step.id || `step_${Date.now()}`
@@ -651,6 +681,95 @@ function calculateTotalTime(steps) {
   });
   
   return totalMinutes > 0 ? `${totalMinutes} minutes` : null;
+}
+
+/**
+ * Update step content with proper ingredient amounts based on tracking
+ */
+function updateStepContentWithIngredients(steps, ingredientsList) {
+  if (!steps || !Array.isArray(steps) || !Array.isArray(ingredientsList)) {
+    return steps || [];
+  }
+  
+  return steps.map(step => {
+    if (!step || !step.content || !step.ingredients || !Array.isArray(step.ingredients)) {
+      return step;
+    }
+    
+    let updatedContent = step.content;
+    
+    try {
+      // Process each ingredient in the step
+      step.ingredients.forEach(ingredientRef => {
+        if (!ingredientRef || typeof ingredientRef !== 'object') {
+          return;
+        }
+        
+        // Only update content for first mentions
+        if (ingredientRef.isFirstMention && ingredientRef.id) {
+          // Find the ingredient in the main list
+          const ingredient = ingredientsList.find(ing => ing && ing.id === ingredientRef.id);
+          if (!ingredient) return;
+          
+          const ingredientName = ingredient.structured?.ingredient?.name || 
+                                extractIngredientNameFromSpec(ingredient.displayText || ingredient.originalText);
+          
+          if (!ingredientName) return;
+          
+          // Build simple amount + unit + ingredient name format
+          let simpleSpec = '';
+          
+          if (ingredient.structured) {
+            const quantity = ingredient.structured.quantity;
+            const unit = ingredient.structured.unit;
+            
+            // Add quantity if it exists
+            if (quantity !== null && quantity !== undefined) {
+              simpleSpec += quantity + ' ';
+            }
+            
+            // Add unit if it exists
+            if (unit) {
+              const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
+              simpleSpec += unitName + ' ';
+            }
+            
+            // Add ingredient name
+            simpleSpec += ingredientName;
+          } else {
+            // Fallback to ingredient name if no structured data
+            simpleSpec = ingredientName;
+          }
+          
+          // Skip if the simple spec is same as ingredient name or too short
+          if (ingredientName.length < 3 || simpleSpec.trim() === ingredientName) {
+            return;
+          }
+          
+          // Replace ingredient name with simple specification in step content
+          // Use word boundaries to avoid partial matches
+          const regex = new RegExp(`\\b${escapeRegExp(ingredientName)}\\b`, 'gi');
+          
+          // Check if step content mentions just the ingredient name (without amount)
+          const hasJustIngredientName = regex.test(updatedContent);
+          const alreadyHasAmount = /\d+\s*(cups?|tbsp?|tsp?|oz|lbs?|grams?|kg|ml|liters?)\s+/i.test(updatedContent);
+          
+          // Only replace if we have just the ingredient name without amounts
+          if (hasJustIngredientName && !alreadyHasAmount) {
+            // Replace with simple specification
+            updatedContent = updatedContent.replace(regex, simpleSpec.trim());
+          }
+        }
+      });
+    } catch (error) {
+      console.warn('Error updating step content with ingredients:', error);
+    }
+    
+    return {
+      ...step,
+      content: updatedContent
+    };
+  });
 }
 
 /**
