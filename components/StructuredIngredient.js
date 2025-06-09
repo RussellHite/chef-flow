@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { colors } from '../styles/colors';
@@ -110,97 +110,126 @@ export default function StructuredIngredient({
   };
 
   const handleManualParsingSave = async () => {
-    // Build structured data from manual assignments
-    const quantity = manualParts.filter(p => p.type === 'quantity').map(p => p.text).join(' ');
-    const unit = manualParts.filter(p => p.type === 'unit').map(p => p.text).join(' ');
-    const ingredientName = manualParts.filter(p => p.type === 'ingredient').map(p => p.text).join(' ');
-    const description = manualParts.filter(p => p.type === 'description').map(p => p.text).join(' ');
-    const action = manualParts.filter(p => p.type === 'action').map(p => p.text).join(' ');
+    try {
+      // Build structured data from manual assignments
+      const quantity = manualParts.filter(p => p.type === 'quantity').map(p => p.text).join(' ');
+      const unit = manualParts.filter(p => p.type === 'unit').map(p => p.text).join(' ');
+      const ingredientName = manualParts.filter(p => p.type === 'ingredient').map(p => p.text).join(' ');
+      const description = manualParts.filter(p => p.type === 'description').map(p => p.text).join(' ');
+      const action = manualParts.filter(p => p.type === 'action').map(p => p.text).join(' ');
 
-    // Build new ingredient text (same as preview)
-    let newText = '';
-    if (quantity) newText += quantity + ' ';
-    if (unit) newText += unit + ' ';
-    if (ingredientName) newText += ingredientName;
-    if (description) newText += ', ' + description;
+      // Build new ingredient text (same as preview)
+      let newText = '';
+      if (quantity) newText += quantity + ' ';
+      if (unit) newText += unit + ' ';
+      if (ingredientName) newText += ingredientName;
+      if (description) newText += ', ' + description;
 
-    // Create structured ingredient object for immediate display
-    const unitData = unit ? MEASUREMENT_UNITS.find(u => 
-      (u.label && u.label.toLowerCase() === unit.toLowerCase()) || 
-      (u.plural && u.plural.toLowerCase() === unit.toLowerCase())
-    ) : null;
-    const parsedQuantity = quantity ? parseFloat(quantity.match(/[\d.]+/)?.[0] || '1') : null;
-    
-    // Fix unit pluralization - if unit not found in standard units, create proper plural
-    const finalUnit = unitData || (unit ? { 
-      value: unit, 
-      name: unit, 
-      plural: unit.endsWith('s') ? unit : unit + 's'  // Better pluralization logic
-    } : null);
-    
-    const newStructuredIngredient = {
-      quantity: parsedQuantity,
-      unit: finalUnit,
-      ingredient: { 
-        id: 'trained', 
-        name: ingredientName || 'ingredient', 
-        category: 'custom' 
-      },
-      preparation: description ? { 
-        id: 'trained', 
-        name: description, 
-        requiresStep: true 
-      } : null,
-      originalText: newText.trim(),
-      isStructured: true
-    };
-
-    // Save the manual parsing as training data
-    await saveParsingTrainingData(originalText || displayText, {
-      quantity: quantity || null,
-      unit: unit || null,
-      ingredient: ingredientName || null,
-      description: description || null,
-      action: action || null,
-      parts: manualParts,
-      structured: newStructuredIngredient
-    });
-
-    // If there's an action, create a step from it
-    if (action && onCreateStep) {
-      // Build step content with action + quantity + ingredient
-      let stepContent = '';
-      
-      // Add action in present tense (capitalize first letter)
-      const presentTenseAction = convertToPresentTense(action);
-      stepContent += presentTenseAction.charAt(0).toUpperCase() + presentTenseAction.slice(1) + ' ';
-      
-      // Add quantity and unit
-      if (quantity) stepContent += quantity + ' ';
-      if (unit) stepContent += unit + ' ';
-      
-      // Add ingredient name
-      if (ingredientName) {
-        stepContent += ingredientName;
-      } else if (ingredient.structured?.ingredient?.name) {
-        stepContent += ingredient.structured.ingredient.name;
-      } else {
-        stepContent += 'ingredient';
+      // Ensure we have at least something to work with
+      if (!newText.trim()) {
+        newText = originalText || displayText || 'ingredient';
       }
+
+      // Create structured ingredient object for immediate display
+      const unitData = unit ? MEASUREMENT_UNITS.find(u => 
+        (u.label && u.label.toLowerCase() === unit.toLowerCase()) || 
+        (u.plural && u.plural.toLowerCase() === unit.toLowerCase())
+      ) : null;
+      const parsedQuantity = quantity ? parseFloat(quantity.match(/[\d.]+/)?.[0] || '1') : null;
       
-      onCreateStep(stepContent.trim(), ingredient.id);
+      // Fix unit pluralization - if unit not found in standard units, create proper plural
+      const finalUnit = unitData || (unit ? { 
+        value: unit, 
+        name: unit, 
+        plural: unit.endsWith('s') ? unit : unit + 's'  // Better pluralization logic
+      } : null);
+      
+      const newStructuredIngredient = {
+        quantity: parsedQuantity,
+        unit: finalUnit,
+        ingredient: { 
+          id: 'trained', 
+          name: ingredientName || 'ingredient', 
+          category: 'custom' 
+        },
+        preparation: description ? { 
+          id: 'trained', 
+          name: description, 
+          requiresStep: true 
+        } : null,
+        originalText: newText.trim(),
+        isStructured: true
+      };
+
+      // Save the manual parsing as training data
+      try {
+        await saveParsingTrainingData(originalText || displayText, {
+          quantity: quantity || null,
+          unit: unit || null,
+          ingredient: ingredientName || null,
+          description: description || null,
+          action: action || null,
+          parts: manualParts,
+          structured: newStructuredIngredient
+        });
+      } catch (trainingError) {
+        console.warn('Error saving training data:', trainingError);
+        // Continue with the update even if training save fails
+      }
+
+      // If there's an action, create a step from it
+      if (action && onCreateStep) {
+        try {
+          // Build step content with action + quantity + ingredient
+          let stepContent = '';
+          
+          // Add action in present tense (capitalize first letter)
+          const presentTenseAction = convertToPresentTense(action);
+          stepContent += presentTenseAction.charAt(0).toUpperCase() + presentTenseAction.slice(1) + ' ';
+          
+          // Add quantity and unit
+          if (quantity) stepContent += quantity + ' ';
+          if (unit) stepContent += unit + ' ';
+          
+          // Add ingredient name
+          if (ingredientName) {
+            stepContent += ingredientName;
+          } else if (ingredient.structured?.ingredient?.name) {
+            stepContent += ingredient.structured.ingredient.name;
+          } else {
+            stepContent += 'ingredient';
+          }
+          
+          onCreateStep(stepContent.trim(), ingredient.id);
+        } catch (stepError) {
+          console.warn('Error creating step from action:', stepError);
+        }
+      }
+
+      // Update the ingredient with new structured data
+      const updatedIngredient = {
+        ...ingredient,
+        originalText: newText.trim(),
+        structured: newStructuredIngredient,
+        displayText: newText.trim()
+      };
+
+      // Call the onEdit callback with error handling
+      if (onEdit) {
+        try {
+          onEdit(updatedIngredient, newText.trim());
+        } catch (editError) {
+          console.warn('Error in onEdit callback:', editError);
+          Alert.alert('Error', 'Failed to update ingredient. Please try again.');
+          return;
+        }
+      }
+
+      setShowManualParsing(false);
+    } catch (error) {
+      console.error('Error in handleManualParsingSave:', error);
+      Alert.alert('Error', 'Failed to save ingredient parsing. Please try again.');
     }
-
-    // Update the ingredient with new structured data
-    const updatedIngredient = {
-      ...ingredient,
-      originalText: newText.trim(),
-      structured: newStructuredIngredient,
-      displayText: newText.trim()
-    };
-
-    onEdit?.(updatedIngredient, newText.trim());
-    setShowManualParsing(false);
   };
 
   const saveParsingTrainingData = async (originalText, manualParsing) => {

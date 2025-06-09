@@ -16,6 +16,7 @@ import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
 import { useRecipes } from '../contexts/RecipeContext';
+import { updateIngredientTracking } from '../services/IngredientTrackingService';
 
 // Helper functions for ingredient parsing
 const extractAmount = (ingredientText) => {
@@ -54,13 +55,43 @@ export default function EditRecipeScreen({ route, navigation }) {
     });
   }, [navigation, isNew, fromHome]);
 
-  // Sync ingredients with main recipe
+  // Sync ingredients with main recipe and apply tracking if needed
   useEffect(() => {
-    setEditedRecipe(prev => ({
-      ...prev,
-      ingredients: ingredients
-    }));
-  }, [ingredients]);
+    // Check if recipe needs ingredient tracking migration
+    const needsTracking = editedRecipe.steps && 
+                         editedRecipe.steps.length > 0 && 
+                         editedRecipe.steps.some(step => 
+                           step.ingredients && 
+                           step.ingredients.length > 0 && 
+                           typeof step.ingredients[0] === 'string'
+                         );
+    
+    if (needsTracking && ingredients.length > 0) {
+      try {
+        // Apply ingredient tracking to existing recipe
+        const { steps: trackedSteps, ingredientTracker } = updateIngredientTracking(editedRecipe.steps, ingredients);
+        
+        setEditedRecipe(prev => ({
+          ...prev,
+          ingredients: ingredients,
+          steps: trackedSteps,
+          ingredientTracker
+        }));
+      } catch (error) {
+        console.warn('Error applying ingredient tracking:', error);
+        // Fallback to simple update
+        setEditedRecipe(prev => ({
+          ...prev,
+          ingredients: ingredients
+        }));
+      }
+    } else {
+      setEditedRecipe(prev => ({
+        ...prev,
+        ingredients: ingredients
+      }));
+    }
+  }, [ingredients, editedRecipe.steps]);
 
   const handleStepUpdate = (stepId, updatedStep) => {
     setEditedRecipe(prev => ({
@@ -205,53 +236,64 @@ export default function EditRecipeScreen({ route, navigation }) {
 
 
   const handleIngredientEdit = async (ingredient, newText) => {
-    let updatedIngredient;
-    
-    // Check if this is already a structured ingredient object (from manual training)
-    if (typeof ingredient === 'object' && ingredient.structured && newText) {
-      // This is a pre-structured ingredient from manual training
-      updatedIngredient = ingredient;
-      setIngredients(prev => 
-        prev.map(ing => ing.id === ingredient.id ? ingredient : ing)
-      );
-    } else if (newText && newText.trim()) {
-      // Original parsing logic for text-based edits
-      try {
-        // Re-parse the ingredient text
-        const structured = await import('../services/ingredientServiceInstance.js')
-          .then(module => module.default.parseIngredientText(newText.trim()));
-        
-        updatedIngredient = {
-          ...ingredient,
-          originalText: newText.trim(),
-          structured: structured,
-          displayText: structured.isStructured 
-            ? await import('../services/ingredientServiceInstance.js')
-                .then(module => module.default.formatIngredientForDisplay(structured))
-            : newText.trim()
-        };
-        
+    try {
+      let updatedIngredient;
+      
+      // Check if this is already a structured ingredient object (from manual training)
+      if (typeof ingredient === 'object' && ingredient.structured && newText) {
+        // This is a pre-structured ingredient from manual training
+        updatedIngredient = ingredient;
         setIngredients(prev => 
-          prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          prev.map(ing => ing.id === ingredient.id ? ingredient : ing)
         );
-      } catch (error) {
-        // Fallback to simple text update
-        updatedIngredient = {
-          ...ingredient,
-          originalText: newText.trim(),
-          structured: null,
-          displayText: newText.trim()
-        };
-        
-        setIngredients(prev => 
-          prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
-        );
+      } else if (newText && newText.trim()) {
+        // Original parsing logic for text-based edits
+        try {
+          // Re-parse the ingredient text
+          const structured = await import('../services/ingredientServiceInstance.js')
+            .then(module => module.default.parseIngredientText(newText.trim()));
+          
+          updatedIngredient = {
+            ...ingredient,
+            originalText: newText.trim(),
+            structured: structured,
+            displayText: structured.isStructured 
+              ? await import('../services/ingredientServiceInstance.js')
+                  .then(module => module.default.formatIngredientForDisplay(structured))
+              : newText.trim()
+          };
+          
+          setIngredients(prev => 
+            prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          );
+        } catch (error) {
+          console.warn('Error parsing ingredient:', error);
+          // Fallback to simple text update
+          updatedIngredient = {
+            ...ingredient,
+            originalText: newText.trim(),
+            structured: null,
+            displayText: newText.trim()
+          };
+          
+          setIngredients(prev => 
+            prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          );
+        }
       }
-    }
 
-    // Update steps that reference this ingredient
-    if (updatedIngredient) {
-      updateStepsWithIngredient(ingredient, updatedIngredient);
+      // Update steps that reference this ingredient
+      if (updatedIngredient) {
+        try {
+          updateStepsWithIngredient(ingredient, updatedIngredient);
+        } catch (stepError) {
+          console.warn('Error updating steps with ingredient:', stepError);
+          // Don't fail the whole operation if step update fails
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleIngredientEdit:', error);
+      Alert.alert('Error', 'Failed to update ingredient. Please try again.');
     }
   };
 
@@ -346,7 +388,18 @@ export default function EditRecipeScreen({ route, navigation }) {
 
   const isIngredientMatch = (stepIngredient, ingredientName) => {
     if (!stepIngredient || !ingredientName) return false;
-    const stepIngredientLower = stepIngredient.toLowerCase();
+    
+    // Handle both string and object formats
+    let stepIngredientText = '';
+    if (typeof stepIngredient === 'string') {
+      stepIngredientText = stepIngredient;
+    } else if (typeof stepIngredient === 'object' && stepIngredient.text) {
+      stepIngredientText = stepIngredient.text;
+    } else {
+      return false;
+    }
+    
+    const stepIngredientLower = stepIngredientText.toLowerCase();
     const ingredientNameLower = ingredientName.toLowerCase();
     
     // Direct match
