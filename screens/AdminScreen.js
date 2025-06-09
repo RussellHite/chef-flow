@@ -58,6 +58,34 @@ export default function AdminScreen({ navigation }) {
       icon: 'school',
       onPress: () => navigation.navigate('ParsingTraining'),
     },
+    {
+      id: 'vector-demo',
+      title: 'Vector Search Demo',
+      description: 'Test vector similarity search and performance metrics',
+      icon: 'search',
+      onPress: () => navigation.navigate('VectorDemo'),
+    },
+    {
+      id: 'cooking-demo',
+      title: 'Cooking Session Demo',
+      description: 'Test cooking session functionality and UI components',
+      icon: 'flame',
+      onPress: () => navigation.navigate('CookingDemo'),
+    },
+    {
+      id: 'cooking-test',
+      title: 'Cooking Session Tests',
+      description: 'Run comprehensive tests for GitHub Issue #6',
+      icon: 'checkmark-circle',
+      onPress: () => navigation.navigate('CookingTest'),
+    },
+    {
+      id: 'context-test',
+      title: 'Context Debug Test',
+      description: 'Simple test to verify CookingContext is working',
+      icon: 'bug',
+      onPress: () => navigation.navigate('ContextTest'),
+    },
   ];
 
   const renderAdminCard = (page) => (

@@ -15,6 +15,10 @@ import AddRecipeScreen from '../screens/AddRecipeScreen';
 import EditRecipeScreen from '../screens/EditRecipeScreen';
 import CookRecipeScreen from '../screens/CookRecipeScreen';
 import CookingFlowScreen from '../screens/CookingFlowScreen';
+import VectorDemo from '../components/VectorDemo';
+import CookingSessionDemo from '../components/CookingSessionDemo';
+import CookingSessionTest from '../components/CookingSessionTest';
+import CookingContextTest from '../components/CookingContextTest';
 import { colors } from '../styles/colors';
 
 const Tab = createBottomTabNavigator();
@@ -89,6 +93,26 @@ function AdminStack() {
         name="ParsingTraining" 
         component={ParsingTrainingScreen}
         options={{ title: 'Parsing Training' }}
+      />
+      <Stack.Screen 
+        name="VectorDemo" 
+        component={VectorDemo}
+        options={{ title: 'Vector Search Demo' }}
+      />
+      <Stack.Screen 
+        name="CookingDemo" 
+        component={CookingSessionDemo}
+        options={{ title: 'Cooking Session Demo' }}
+      />
+      <Stack.Screen 
+        name="CookingTest" 
+        component={CookingSessionTest}
+        options={{ title: 'Cooking Session Tests' }}
+      />
+      <Stack.Screen 
+        name="ContextTest" 
+        component={CookingContextTest}
+        options={{ title: 'Context Debug Test' }}
       />
     </Stack.Navigator>
   );

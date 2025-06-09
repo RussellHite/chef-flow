@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './navigation/AppNavigator';
 import { RecipeProvider } from './contexts/RecipeContext';
+import { CookingProvider } from './contexts/CookingContext';
 import NotificationService from './services/NotificationService';
 
 export default function App() {
@@ -18,8 +19,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <RecipeProvider>
-        <AppNavigator />
-        <StatusBar style="light" />
+        <CookingProvider>
+          <AppNavigator />
+          <StatusBar style="light" />
+        </CookingProvider>
       </RecipeProvider>
     </SafeAreaProvider>
   );

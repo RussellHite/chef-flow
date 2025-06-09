@@ -5,11 +5,13 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
 import StructuredIngredient from '../components/StructuredIngredient';
+import { useCookingSessionSimple } from '../hooks/useCookingSessionSimple';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
@@ -17,6 +19,14 @@ import { commonStyles } from '../styles/common';
 export default function CookRecipeScreen({ route, navigation }) {
   const { recipe } = route.params;
   const [readyByTime, setReadyByTime] = useState('');
+  
+  // Get cooking session state
+  const { isActive, recipeName, error } = useCookingSessionSimple();
+  
+  // Log any errors for debugging
+  if (error) {
+    console.error('CookRecipeScreen - Cooking session error:', error);
+  }
 
   useEffect(() => {
     navigation.setOptions({
@@ -58,7 +68,22 @@ export default function CookRecipeScreen({ route, navigation }) {
   };
 
   const handleLetsCook = () => {
-    navigation.navigate('CookingFlow', { recipe });
+    // Simplified for debugging - just navigate to cooking flow
+    if (isActive && recipeName !== recipe.title) {
+      Alert.alert(
+        'Active Cooking Session',
+        `You're currently cooking "${recipeName}". Starting a new recipe will end the current session.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Start New Recipe', 
+            onPress: () => navigation.navigate('CookingFlow', { recipe })
+          }
+        ]
+      );
+    } else {
+      navigation.navigate('CookingFlow', { recipe });
+    }
   };
 
   return (
@@ -91,9 +116,27 @@ export default function CookRecipeScreen({ route, navigation }) {
           ))}
         </View>
 
+        {isActive && (
+          <View style={styles.activeSessionBanner}>
+            <View style={styles.activeSessionHeader}>
+              <Ionicons name="flame" size={20} color={colors.primary} />
+              <Text style={styles.activeSessionTitle}>Active Cooking Session</Text>
+            </View>
+            <Text style={styles.activeSessionText}>
+              You're currently cooking: {recipeName}
+            </Text>
+            <TouchableOpacity 
+              style={styles.resumeButton}
+              onPress={() => navigation.navigate('CookingFlow', { recipe: { title: recipeName } })}
+            >
+              <Text style={styles.resumeButtonText}>Resume Cooking</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.buttonContainer}>
           <Button
-            title="Let's Cook!"
+            title={isActive && recipeName === recipe.title ? "Continue Cooking" : "Let's Cook!"}
             onPress={handleLetsCook}
             style={styles.cookButton}
           />
@@ -167,5 +210,41 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 8,
+  },
+  activeSessionBanner: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+  },
+  activeSessionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  activeSessionTitle: {
+    ...typography.h3,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  activeSessionText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: 12,
+  },
+  resumeButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  resumeButtonText: {
+    ...typography.caption,
+    color: colors.surface,
+    fontWeight: '600',
   },
 });
