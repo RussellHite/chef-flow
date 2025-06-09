@@ -71,10 +71,56 @@ export default function EditRecipeScreen({ route, navigation }) {
         // Apply ingredient tracking to existing recipe
         const { steps: trackedSteps, ingredientTracker } = updateIngredientTracking(editedRecipe.steps, ingredients);
         
+        // Also update step content with amounts
+        const stepsWithUpdatedContent = trackedSteps.map((step, stepIndex) => {
+          let updatedContent = step.content;
+          
+          if (step.ingredients && Array.isArray(step.ingredients)) {
+            step.ingredients.forEach(ingredientRef => {
+              if (ingredientRef && typeof ingredientRef === 'object' && 
+                  ingredientRef.isFirstMention && ingredientRef.id) {
+                
+                const ingredient = ingredients.find(ing => ing.id === ingredientRef.id);
+                if (!ingredient) return;
+                
+                const ingredientName = ingredient.structured?.ingredient?.name;
+                if (!ingredientName) return;
+                
+                // Build simple spec
+                let simpleSpec = '';
+                const quantity = ingredient.structured?.quantity;
+                const unit = ingredient.structured?.unit;
+                
+                if (quantity !== null && quantity !== undefined) {
+                  simpleSpec += quantity + ' ';
+                }
+                
+                if (unit) {
+                  const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
+                  simpleSpec += unitName + ' ';
+                }
+                
+                simpleSpec += ingredientName;
+                
+                // Replace in step content
+                const regex = new RegExp(`\\b${ingredientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+                if (regex.test(updatedContent) && simpleSpec.trim() !== ingredientName) {
+                  updatedContent = updatedContent.replace(regex, simpleSpec.trim());
+                }
+              }
+            });
+          }
+          
+          return {
+            ...step,
+            content: updatedContent
+          };
+        });
+        
         setEditedRecipe(prev => ({
           ...prev,
           ingredients: ingredients,
-          steps: trackedSteps,
+          steps: stepsWithUpdatedContent,
           ingredientTracker
         }));
       } catch (error) {
@@ -91,7 +137,7 @@ export default function EditRecipeScreen({ route, navigation }) {
         ingredients: ingredients
       }));
     }
-  }, [ingredients, editedRecipe.steps]);
+  }, [ingredients]);
 
   const handleStepUpdate = (stepId, updatedStep) => {
     setEditedRecipe(prev => ({
@@ -301,22 +347,80 @@ export default function EditRecipeScreen({ route, navigation }) {
     const originalName = getIngredientName(originalIngredient);
     const newDisplayText = getIngredientDisplayText(updatedIngredient);
     
+    // Build simple amount + unit + name format for step content
+    let simpleSpec = '';
+    if (updatedIngredient.structured) {
+      const quantity = updatedIngredient.structured.quantity;
+      const unit = updatedIngredient.structured.unit;
+      const ingredientName = updatedIngredient.structured.ingredient?.name || originalName;
+      
+      // Add quantity if it exists
+      if (quantity !== null && quantity !== undefined) {
+        simpleSpec += quantity + ' ';
+      }
+      
+      // Add unit if it exists
+      if (unit) {
+        const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
+        simpleSpec += unitName + ' ';
+      }
+      
+      // Add ingredient name
+      simpleSpec += ingredientName;
+    } else {
+      simpleSpec = newDisplayText || originalName;
+    }
+    
+    // Track which steps have already mentioned this ingredient
+    const usedInSteps = new Set();
+    
     setEditedRecipe(prev => ({
       ...prev,
-      steps: prev.steps.map(step => {
+      steps: prev.steps.map((step, stepIndex) => {
         if (step.ingredients && step.ingredients.length > 0) {
-          const updatedStepIngredients = step.ingredients.map(stepIngredient => {
-            // Check if this step ingredient references the updated ingredient
-            if (isIngredientMatch(stepIngredient, originalName)) {
-              return newDisplayText;
-            }
-            return stepIngredient;
-          });
+          const hasThisIngredient = step.ingredients.some(stepIngredient => 
+            isIngredientMatch(stepIngredient, originalName)
+          );
           
-          return {
-            ...step,
-            ingredients: updatedStepIngredients
-          };
+          if (hasThisIngredient) {
+            const isFirstMention = !usedInSteps.has(originalName);
+            usedInSteps.add(originalName);
+            
+            // Update step content to show amount on first mention
+            let updatedContent = step.content;
+            if (originalName && originalName.length > 2) {
+              const regex = new RegExp(`\\b${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+              
+              if (isFirstMention) {
+                // First mention: show full amount + unit + name
+                updatedContent = updatedContent.replace(regex, simpleSpec.trim());
+              } else {
+                // Subsequent mentions: show just ingredient name
+                const justName = updatedIngredient.structured?.ingredient?.name || originalName;
+                updatedContent = updatedContent.replace(regex, justName);
+              }
+            }
+            
+            // Update step ingredients array
+            const updatedStepIngredients = step.ingredients.map(stepIngredient => {
+              if (isIngredientMatch(stepIngredient, originalName)) {
+                return {
+                  id: updatedIngredient.id,
+                  text: isFirstMention ? simpleSpec.trim() : (updatedIngredient.structured?.ingredient?.name || originalName),
+                  fullText: newDisplayText,
+                  isFirstMention: isFirstMention,
+                  firstMentionStepId: isFirstMention ? step.id : null
+                };
+              }
+              return stepIngredient;
+            });
+            
+            return {
+              ...step,
+              content: updatedContent,
+              ingredients: updatedStepIngredients
+            };
+          }
         }
         return step;
       })
