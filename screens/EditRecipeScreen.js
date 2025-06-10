@@ -17,6 +17,7 @@ import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
 import { useRecipes } from '../contexts/RecipeContext';
 import { updateIngredientTracking } from '../services/IngredientTrackingService';
+import { useRecipeCreationTracking } from '../hooks/useIngredientTracking';
 
 // Helper functions for ingredient parsing
 const extractAmount = (ingredientText) => {
@@ -39,6 +40,9 @@ export default function EditRecipeScreen({ route, navigation }) {
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('flow');
   const [originalStepContent, setOriginalStepContent] = useState(new Map());
+  
+  // Initialize ingredient tracking for recipe editing
+  const tracking = useRecipeCreationTracking();
 
   useEffect(() => {
     navigation.setOptions({
@@ -237,6 +241,18 @@ export default function EditRecipeScreen({ route, navigation }) {
       // TODO: Implement recipe saving logic
       await saveRecipe(editedRecipe, isNew);
       
+      // Track recipe completion
+      if (tracking.isInitialized && ingredients.length > 0) {
+        await tracking.trackRecipeCompleted(ingredients, {
+          name: editedRecipe.title,
+          id: editedRecipe.id || `recipe_${Date.now()}`,
+          totalIngredients: ingredients.length,
+          totalSteps: editedRecipe.steps?.length || 0,
+          isComplete: true,
+          source: isNew ? 'recipe_creation' : 'recipe_edit'
+        });
+      }
+      
       if (isNew) {
         navigation.navigate('Home', { 
           newRecipe: { ...editedRecipe, originalContent },
@@ -304,6 +320,16 @@ export default function EditRecipeScreen({ route, navigation }) {
   const handleIngredientEdit = async (ingredient, newText) => {
     try {
       let updatedIngredient;
+      
+      // Track ingredient correction/edit
+      if (tracking.isInitialized && newText && newText.trim() !== ingredient.originalText) {
+        const correctionType = ingredient.structured ? 'refinement' : 'text_edit';
+        await tracking.trackCorrection(
+          { name: ingredient.originalText || ingredient.displayText, text: ingredient.originalText },
+          { name: newText.trim(), text: newText.trim() },
+          correctionType
+        );
+      }
       
       // Check if this is already a structured ingredient object (from manual training)
       if (typeof ingredient === 'object' && ingredient.structured && newText) {
@@ -708,7 +734,16 @@ export default function EditRecipeScreen({ route, navigation }) {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            // Track ingredient removal
+            if (tracking.isInitialized) {
+              await tracking.trackIngredientRemoved(ingredient, {
+                recipeId: editedRecipe.id,
+                recipeName: editedRecipe.title,
+                reason: 'user_delete'
+              });
+            }
+            
             setIngredients(prev => prev.filter(ing => ing.id !== ingredient.id));
             
             // Remove ingredient from steps

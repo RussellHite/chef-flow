@@ -15,12 +15,16 @@ import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
 import { parseRecipe } from '../utils/recipeParser';
+import { useRecipeCreationTracking } from '../hooks/useIngredientTracking';
 
 export default function AddRecipeScreen({ navigation }) {
   const [recipeTitle, setRecipeTitle] = useState('');
   const [ingredients, setIngredients] = useState('');
   const [steps, setSteps] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Initialize ingredient tracking for recipe creation
+  const tracking = useRecipeCreationTracking();
 
   useEffect(() => {
     navigation.setOptions({
@@ -39,6 +43,17 @@ export default function AddRecipeScreen({ navigation }) {
     try {
       // Parse recipe with separate ingredients and steps
       const parsedRecipe = await parseRecipe(recipeTitle, steps, ingredients);
+      
+      // Track recipe creation with parsed ingredients
+      if (tracking.isInitialized && parsedRecipe.ingredients) {
+        await tracking.trackRecipeCompleted(parsedRecipe.ingredients, {
+          name: recipeTitle,
+          id: parsedRecipe.id || `recipe_${Date.now()}`,
+          totalIngredients: parsedRecipe.ingredients.length,
+          isComplete: false, // Recipe creation started, not completed
+          source: 'recipe_creation'
+        });
+      }
       
       // Navigate to recipe editing screen with parsed data and original content
       navigation.navigate('EditRecipe', { 

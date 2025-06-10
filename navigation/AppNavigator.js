@@ -23,6 +23,8 @@ import CookingContextTest from '../components/CookingContextTest';
 import CookingIndicator from '../components/CookingIndicator';
 import CookingIndicatorDemo from '../components/CookingIndicatorDemo';
 import IngredientTrackingDemo from '../components/IngredientTrackingDemo';
+import DataVisualizationDashboard from '../components/DataVisualizationDashboard';
+import PrivacyControls from '../components/PrivacyControls';
 import { colors } from '../styles/colors';
 
 const Tab = createBottomTabNavigator();
@@ -127,6 +129,16 @@ function AdminStack() {
         name="IngredientTrackingDemo" 
         component={IngredientTrackingDemo}
         options={{ title: 'Ingredient Learning Demo' }}
+      />
+      <Stack.Screen 
+        name="DataDashboard" 
+        component={DataVisualizationDashboard}
+        options={{ title: 'Data Analytics' }}
+      />
+      <Stack.Screen 
+        name="PrivacyControls" 
+        component={PrivacyControls}
+        options={{ title: 'Privacy & Data Controls' }}
       />
     </Stack.Navigator>
   );

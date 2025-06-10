@@ -72,6 +72,20 @@ export default function AdminScreen({ navigation }) {
       icon: 'library',
       onPress: () => navigation.navigate('IngredientTrackingDemo'),
     },
+    {
+      id: 'data-dashboard',
+      title: 'Data Analytics Dashboard',
+      description: 'View insights and visualizations of your cooking data',
+      icon: 'bar-chart',
+      onPress: () => navigation.navigate('DataDashboard'),
+    },
+    {
+      id: 'privacy-controls',
+      title: 'Privacy & Data Controls',
+      description: 'Manage data collection consent and privacy settings',
+      icon: 'shield-checkmark',
+      onPress: () => navigation.navigate('PrivacyControls'),
+    },
   ];
 
   const renderAdminCard = (page) => (

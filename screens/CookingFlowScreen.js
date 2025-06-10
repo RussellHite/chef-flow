@@ -12,6 +12,7 @@ import Button from '../components/Button';
 import TimerService from '../services/TimerService';
 import { useCookingSession } from '../hooks/useCookingSession';
 import { useRecipes } from '../contexts/RecipeContext';
+import { useCookingTracking } from '../hooks/useIngredientTracking';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
@@ -21,6 +22,9 @@ export default function CookingFlowScreen({ route, navigation }) {
   
   // Get recipes context to fetch recipe when resuming
   const { recipes } = useRecipes();
+  
+  // Initialize cooking tracking
+  const cookingTracking = useCookingTracking();
   
   // Use global cooking session management
   const {
@@ -92,6 +96,11 @@ export default function CookingFlowScreen({ route, navigation }) {
   useEffect(() => {
     if (!isActive && !resumeSession && workingRecipe) {
       startCookingSession(workingRecipe, { startStep: initialStepIndex });
+      
+      // Track cooking session start
+      if (cookingTracking.isInitialized) {
+        cookingTracking.trackCookingStarted(workingRecipe);
+      }
     }
   }, [workingRecipe]);
   
