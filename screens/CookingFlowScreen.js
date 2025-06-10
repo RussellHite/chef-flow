@@ -122,9 +122,11 @@ export default function CookingFlowScreen({ route, navigation }) {
   }, [navigation]);
 
   useEffect(() => {
-    calculateTimes();
-    setSentenceTimers({}); // Reset timers when step changes
-  }, [recipe, currentStepIndex]);
+    if (workingRecipe) {
+      calculateTimes();
+      setSentenceTimers({}); // Reset timers when step changes
+    }
+  }, [workingRecipe, currentStepIndex]);
 
   useEffect(() => {
     const unsubscribe = TimerService.addListener(setActiveTimers);
@@ -135,7 +137,9 @@ export default function CookingFlowScreen({ route, navigation }) {
 
   const calculateTimes = () => {
     // Calculate total remaining time from current step onwards
-    const remainingMinutes = recipe.steps.slice(currentStepIndex).reduce((total, step) => {
+    if (!workingRecipe || !workingRecipe.steps) return;
+    
+    const remainingMinutes = workingRecipe.steps.slice(currentStepIndex).reduce((total, step) => {
       if (step.timing) {
         const timeMatch = step.timing.match(/(\d+)/);
         return total + (timeMatch ? parseInt(timeMatch[1]) : 0);
@@ -296,7 +300,7 @@ export default function CookingFlowScreen({ route, navigation }) {
       }
     } else {
       const recipeData = {
-        recipeId: recipe.id,
+        recipeId: workingRecipe?.id || activeRecipe,
         stepIndex: currentStepIndex
       };
       await TimerService.startTimer(timerId, currentTime, sentence.substring(0, 30) + '...', recipeData);
