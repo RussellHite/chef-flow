@@ -11,12 +11,16 @@ import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
 import TimerService from '../services/TimerService';
 import { useCookingSession } from '../hooks/useCookingSession';
+import { useRecipes } from '../contexts/RecipeContext';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
 
 export default function CookingFlowScreen({ route, navigation }) {
   const { recipe, initialStepIndex = 0, resumeSession = false } = route.params || {};
+  
+  // Get recipes context to fetch recipe when resuming
+  const { recipes } = useRecipes();
   
   // Use global cooking session management
   const {
@@ -45,28 +49,38 @@ export default function CookingFlowScreen({ route, navigation }) {
 
   // Determine which recipe to use
   useEffect(() => {
-    if (resumeSession && isActive) {
-      // When resuming, we don't have the full recipe object
-      // Create a minimal recipe structure for display
-      setWorkingRecipe({
-        title: rawState?.recipeName || 'Active Recipe',
-        steps: new Array(rawState?.totalSteps || 1).fill(null).map((_, index) => ({
-          id: `step-${index}`,
-          instruction: `Step ${index + 1}`,
-          timing: null,
-          ingredients: []
-        }))
-      });
+    if (resumeSession && isActive && activeRecipe) {
+      // When resuming, try to find the full recipe from the recipes list
+      console.log('Resuming session for recipe ID:', activeRecipe);
+      const fullRecipe = recipes.find(r => r.id === activeRecipe);
+      
+      if (fullRecipe) {
+        // Found the full recipe
+        setWorkingRecipe(fullRecipe);
+      } else {
+        // Fallback: Create a minimal recipe structure for display
+        console.log('Recipe not found in context, using minimal structure');
+        const totalStepsCount = rawState?.totalSteps || 1;
+        setWorkingRecipe({
+          title: rawState?.recipeName || 'Active Recipe',
+          steps: new Array(totalStepsCount).fill(null).map((_, index) => ({
+            id: `step-${index}`,
+            instruction: `Step ${index + 1}`,
+            timing: null,
+            ingredients: []
+          }))
+        });
+      }
     } else if (recipe && recipe.steps) {
       // Use the provided recipe
       setWorkingRecipe(recipe);
-    } else {
-      // Fallback - navigate back if no valid recipe
+    } else if (!resumeSession) {
+      // Only navigate back if we're not trying to resume a session
       console.warn('No valid recipe provided to CookingFlowScreen');
       navigation.goBack();
       return;
     }
-  }, [recipe, resumeSession, isActive, rawState]);
+  }, [recipe, resumeSession, isActive, rawState, activeRecipe, recipes]);
 
   // These will be calculated inside the render when workingRecipe is available
   
@@ -325,15 +339,17 @@ export default function CookingFlowScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading recipe...</Text>
+          <Text style={styles.loadingText}>
+            {resumeSession ? 'Resuming cooking session...' : 'Loading recipe...'}
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
   // Calculate current step and total steps when workingRecipe is available
-  const currentStep = workingRecipe.steps[currentStepIndex];
-  const totalSteps = workingRecipe.steps.length;
+  const currentStep = workingRecipe.steps?.[currentStepIndex] || {};
+  const totalSteps = workingRecipe.steps?.length || 0;
 
   return (
     <SafeAreaView style={styles.container}>
