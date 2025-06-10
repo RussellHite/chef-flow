@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigationState } from '@react-navigation/native';
 import { useCookingSession } from '../hooks/useCookingSession';
 import { formatTimerDisplay } from '../utils/cookingSessionUtils';
 import { colors } from '../styles/colors';
@@ -30,6 +31,9 @@ const ANIMATION_DURATION = 300;
 export default function CookingIndicator({ navigation, onPress }) {
   const insets = useSafeAreaInsets();
   
+  // Get current navigation state to determine if on cooking screens
+  const navigationState = useNavigationState(state => state);
+  
   // Get cooking session data with defensive destructuring
   const cookingSession = useCookingSession();
   const { 
@@ -40,6 +44,29 @@ export default function CookingIndicator({ navigation, onPress }) {
     progress = 0, 
     timer = {} 
   } = cookingSession || {};
+
+  // Check if user is currently on a cooking screen
+  const isOnCookingScreen = () => {
+    if (!navigationState) return false;
+    
+    // Get the current route name
+    const getCurrentRouteName = (state) => {
+      if (!state || !state.routes) return null;
+      
+      const route = state.routes[state.index];
+      if (route.state) {
+        // If the route has nested state (like stack navigator), recurse
+        return getCurrentRouteName(route.state);
+      }
+      return route.name;
+    };
+    
+    const currentRouteName = getCurrentRouteName(navigationState);
+    
+    // Hide indicator on cooking-related screens
+    const cookingScreens = ['CookingFlow', 'CookRecipe'];
+    return cookingScreens.includes(currentRouteName);
+  };
 
   // Animation states
   const [slideAnim] = useState(new Animated.Value(0));
@@ -58,9 +85,11 @@ export default function CookingIndicator({ navigation, onPress }) {
     return () => subscription?.remove();
   }, []);
 
-  // Show/hide indicator based on cooking session status
+  // Show/hide indicator based on cooking session status and current screen
   useEffect(() => {
-    if (isActive && !isVisible) {
+    const shouldShowIndicator = isActive && !isOnCookingScreen();
+    
+    if (shouldShowIndicator && !isVisible) {
       // Show indicator
       setIsVisible(true);
       Animated.timing(slideAnim, {
@@ -68,7 +97,7 @@ export default function CookingIndicator({ navigation, onPress }) {
         duration: ANIMATION_DURATION,
         useNativeDriver: true,
       }).start();
-    } else if (!isActive && isVisible) {
+    } else if ((!isActive || isOnCookingScreen()) && isVisible) {
       // Hide indicator
       Animated.timing(slideAnim, {
         toValue: 0,
@@ -78,10 +107,10 @@ export default function CookingIndicator({ navigation, onPress }) {
         setIsVisible(false);
       });
     }
-  }, [isActive, isVisible, slideAnim]);
+  }, [isActive, isVisible, slideAnim, navigationState]);
 
-  // Don't render if no active session
-  if (!isActive && !isVisible) {
+  // Don't render if no active session or on cooking screens
+  if ((!isActive && !isVisible) || isOnCookingScreen()) {
     return null;
   }
 
