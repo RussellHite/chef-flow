@@ -22,6 +22,7 @@ import CookingSessionTest from '../components/CookingSessionTest';
 import CookingContextTest from '../components/CookingContextTest';
 import CookingIndicator from '../components/CookingIndicator';
 import CookingIndicatorDemo from '../components/CookingIndicatorDemo';
+import IngredientTrackingDemo from '../components/IngredientTrackingDemo';
 import { colors } from '../styles/colors';
 
 const Tab = createBottomTabNavigator();
@@ -121,6 +122,11 @@ function AdminStack() {
         name="IndicatorDemo" 
         component={CookingIndicatorDemo}
         options={{ title: 'Cooking Indicator Demo' }}
+      />
+      <Stack.Screen 
+        name="IngredientTrackingDemo" 
+        component={IngredientTrackingDemo}
+        options={{ title: 'Ingredient Learning Demo' }}
       />
     </Stack.Navigator>
   );

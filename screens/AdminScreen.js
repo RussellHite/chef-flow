@@ -93,6 +93,13 @@ export default function AdminScreen({ navigation }) {
       icon: 'analytics',
       onPress: () => navigation.navigate('IndicatorDemo'),
     },
+    {
+      id: 'ingredient-tracking-demo',
+      title: 'Ingredient Learning Demo',
+      description: 'Test ingredient data collection for ML training',
+      icon: 'library',
+      onPress: () => navigation.navigate('IngredientTrackingDemo'),
+    },
   ];
 
   const renderAdminCard = (page) => (
