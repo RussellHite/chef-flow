@@ -44,6 +44,11 @@ export default function CookingIndicator({ navigation, onPress }) {
     progress = 0, 
     timer = {} 
   } = cookingSession || {};
+  
+  // Debug logging for timer
+  if (timer.isActive) {
+    console.log('CookingIndicator - Active timer:', timer);
+  }
 
   // Check if user is currently on a cooking screen
   const isOnCookingScreen = () => {

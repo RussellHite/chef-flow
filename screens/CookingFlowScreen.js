@@ -35,7 +35,11 @@ export default function CookingFlowScreen({ route, navigation }) {
     previousStep,
     canGoNext,
     canGoPrevious,
-    isFinalStep
+    isFinalStep,
+    startStepTimer,
+    stopStepTimer,
+    toggleTimer,
+    timer: globalTimer
   } = useCookingSession();
   
   // Handle case where we're resuming a session vs starting a new one
@@ -287,18 +291,23 @@ export default function CookingFlowScreen({ route, navigation }) {
     const sentence = sentences[sentenceIndex];
     const timingInfo = detectTiming(sentence);
     const currentTime = sentenceTimers[sentenceIndex] || timingInfo?.timeInMinutes;
-    const timerId = getTimerId(sentenceIndex);
-    const existingTimer = TimerService.getTimer(timerId);
     
-    console.log('Starting timer:', { sentenceIndex, currentTime, timerId });
+    console.log('Starting timer:', { sentenceIndex, currentTime, sentence });
     
-    if (existingTimer) {
-      if (existingTimer.isRunning) {
-        await TimerService.pauseTimer(timerId);
-      } else {
-        await TimerService.resumeTimer(timerId);
-      }
+    // Check if this is the same timer that's already running globally
+    if (globalTimer?.isActive && globalTimer?.stepId === `${currentStepIndex}-${sentenceIndex}`) {
+      // Toggle the existing global timer
+      toggleTimer();
     } else {
+      // Start a new global timer
+      const durationInSeconds = (currentTime || 5) * 60; // Convert minutes to seconds
+      startStepTimer(durationInSeconds, {
+        stepId: `${currentStepIndex}-${sentenceIndex}`,
+        stepName: sentence.substring(0, 30) + '...'
+      });
+      
+      // Also start local timer for UI display
+      const timerId = getTimerId(sentenceIndex);
       const recipeData = {
         recipeId: workingRecipe?.id || activeRecipe,
         stepIndex: currentStepIndex
@@ -308,11 +317,23 @@ export default function CookingFlowScreen({ route, navigation }) {
   };
 
   const handleResetTimer = (sentenceIndex) => {
+    // Stop the global timer if it's for this sentence
+    if (globalTimer?.isActive && globalTimer?.stepId === `${currentStepIndex}-${sentenceIndex}`) {
+      stopStepTimer();
+    }
+    
+    // Reset local timer
     const timerId = getTimerId(sentenceIndex);
     TimerService.resetTimer(timerId);
   };
 
   const handleStopTimer = async (sentenceIndex) => {
+    // Stop the global timer if it's for this sentence
+    if (globalTimer?.isActive && globalTimer?.stepId === `${currentStepIndex}-${sentenceIndex}`) {
+      stopStepTimer();
+    }
+    
+    // Stop local timer
     const timerId = getTimerId(sentenceIndex);
     await TimerService.stopTimer(timerId);
   };
