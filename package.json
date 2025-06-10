@@ -6,7 +6,13 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:android:dev": "eas build --platform android --profile development",
+    "build:android:prod": "eas build --platform android --profile production",
+    "build:status": "eas build:list",
+    "prebuild": "expo prebuild --clean",
+    "verify:build": "node scripts/verify-build-setup.js"
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
@@ -32,7 +38,8 @@
     "react-native-web": "^0.20.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "eas-cli": "^16.9.0"
   },
   "private": true
 }

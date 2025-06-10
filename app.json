@@ -16,15 +16,30 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.russellhite.chefflow",
+      "versionCode": 1,
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "buildToolsVersion": "34.0.0",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.VIBRATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "jsEngine": "hermes"
+    "jsEngine": "hermes",
+    "extra": {
+      "eas": {
+        "projectId": "will-be-set-after-eas-login"
+      }
+    }
   }
 }
