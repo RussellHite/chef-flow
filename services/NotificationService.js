@@ -154,11 +154,27 @@ class NotificationService {
   }
 
   async handleTimerNotificationTap(timerId, recipeId, stepIndex) {
-    console.log('Timer notification tapped:', { timerId, recipeId, stepIndex });
+    // console.log('Timer notification tapped:', { timerId, recipeId, stepIndex });
     
-    if (recipeId) {
-      try {
-        // Get recipe from storage
+    try {
+      // Check if there's an active cooking session first
+      const activeCookingSession = await AsyncStorage.getItem('activeCookingSession');
+      
+      if (activeCookingSession) {
+        // Navigate to the active cooking session
+        const sessionData = JSON.parse(activeCookingSession);
+        // console.log('Navigating to active cooking session:', sessionData);
+        
+        // Navigate to cooking flow with resume flag
+        NavigationService.navigate('Recipes', {
+          screen: 'CookingFlow',
+          params: { 
+            resumeSession: true,
+            recipeTitle: sessionData.recipeName
+          }
+        });
+      } else if (recipeId) {
+        // Fallback: navigate to specific recipe if no active session
         const storedRecipes = await AsyncStorage.getItem('recipes');
         if (storedRecipes) {
           const recipes = JSON.parse(storedRecipes);
@@ -168,9 +184,14 @@ class NotificationService {
             NavigationService.navigateToCookingFlow(recipe, stepIndex || 0);
           }
         }
-      } catch (error) {
-        console.error('Error navigating from notification:', error);
+      } else {
+        // Last resort: navigate to recipes screen
+        NavigationService.navigate('Recipes');
       }
+    } catch (error) {
+      console.error('Error navigating from notification:', error);
+      // Fallback to recipes screen
+      NavigationService.navigate('Recipes');
     }
   }
 
