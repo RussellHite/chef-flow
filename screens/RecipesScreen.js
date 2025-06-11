@@ -139,7 +139,7 @@ export default function RecipesScreen({ navigation, route }) {
           </>
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
