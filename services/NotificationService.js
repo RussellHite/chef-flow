@@ -69,12 +69,14 @@ class NotificationService {
     });
 
     this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification tapped:', response.notification.request.content.data);
+      console.log('🔔 Timer notification tapped:', response.notification.request.content.data);
       const { timerId, recipeId, stepIndex } = response.notification.request.content.data;
       
       // Handle deep linking to the cooking screen
       if (timerId && recipeId) {
         this.handleTimerNotificationTap(timerId, recipeId, stepIndex);
+      } else {
+        console.log('⚠️ Notification missing timer/recipe data:', { timerId, recipeId, stepIndex });
       }
     });
 
@@ -154,7 +156,7 @@ class NotificationService {
   }
 
   async handleTimerNotificationTap(timerId, recipeId, stepIndex) {
-    // console.log('Timer notification tapped:', { timerId, recipeId, stepIndex });
+    console.log('🚀 Handling timer notification tap:', { timerId, recipeId, stepIndex });
     
     try {
       // Check if there's an active cooking session first
@@ -163,7 +165,10 @@ class NotificationService {
       if (activeCookingSession) {
         // Navigate to the active cooking session
         const sessionData = JSON.parse(activeCookingSession);
-        // console.log('Navigating to active cooking session:', sessionData);
+        console.log('✅ Found active cooking session, navigating...', {
+          recipeName: sessionData.recipeName,
+          isActive: sessionData.isActive
+        });
         
         // Navigate to cooking flow with resume flag
         NavigationService.navigate('Recipes', {
@@ -173,7 +178,9 @@ class NotificationService {
             recipeTitle: sessionData.recipeName
           }
         });
+        console.log('📱 Navigation dispatched to CookingFlow');
       } else if (recipeId) {
+        console.log('⚠️ No active session, trying to find recipe:', recipeId);
         // Fallback: navigate to specific recipe if no active session
         const storedRecipes = await AsyncStorage.getItem('recipes');
         if (storedRecipes) {
@@ -181,15 +188,21 @@ class NotificationService {
           const recipe = recipes.find(r => r.id === recipeId);
           
           if (recipe) {
+            console.log('✅ Found recipe, navigating:', recipe.title);
             NavigationService.navigateToCookingFlow(recipe, stepIndex || 0);
+          } else {
+            console.log('❌ Recipe not found:', recipeId);
           }
+        } else {
+          console.log('❌ No stored recipes found');
         }
       } else {
+        console.log('🏠 No recipe data, navigating to recipes screen');
         // Last resort: navigate to recipes screen
         NavigationService.navigate('Recipes');
       }
     } catch (error) {
-      console.error('Error navigating from notification:', error);
+      console.error('❌ Error navigating from notification:', error);
       // Fallback to recipes screen
       NavigationService.navigate('Recipes');
     }
