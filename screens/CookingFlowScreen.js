@@ -223,7 +223,7 @@ export default function CookingFlowScreen({ route, navigation }) {
           timeInMinutes = Math.max(1, Math.round(timeInMinutes / 60)); // At least 1 minute
         }
         
-        console.log('Detected timing:', { sentence, timeValue, timeInMinutes, timeUnit });
+        // console.log('Detected timing:', { sentence, timeValue, timeInMinutes, timeUnit });
         
         return {
           originalTime: timeValue,
