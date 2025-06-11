@@ -1,9 +1,7 @@
 import React from 'react';
-import { View } from 'react-native';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
 import { navigationRef } from '../services/NavigationService';
 
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -16,15 +14,6 @@ import AddRecipeScreen from '../screens/AddRecipeScreen';
 import EditRecipeScreen from '../screens/EditRecipeScreen';
 import CookRecipeScreen from '../screens/CookRecipeScreen';
 import CookingFlowScreen from '../screens/CookingFlowScreen';
-import VectorDemo from '../components/VectorDemo';
-import CookingSessionDemo from '../components/CookingSessionDemo';
-import CookingSessionTest from '../components/CookingSessionTest';
-import CookingContextTest from '../components/CookingContextTest';
-import CookingIndicator from '../components/CookingIndicator';
-import CookingIndicatorDemo from '../components/CookingIndicatorDemo';
-import IngredientTrackingDemo from '../components/IngredientTrackingDemo';
-import DataVisualizationDashboard from '../components/DataVisualizationDashboard';
-import PrivacyControls from '../components/PrivacyControls';
 import { colors } from '../styles/colors';
 
 const Tab = createBottomTabNavigator();
@@ -100,46 +89,6 @@ function AdminStack() {
         component={ParsingTrainingScreen}
         options={{ title: 'Parsing Training' }}
       />
-      <Stack.Screen 
-        name="VectorDemo" 
-        component={VectorDemo}
-        options={{ title: 'Vector Search Demo' }}
-      />
-      <Stack.Screen 
-        name="CookingDemo" 
-        component={CookingSessionDemo}
-        options={{ title: 'Cooking Session Demo' }}
-      />
-      <Stack.Screen 
-        name="CookingTest" 
-        component={CookingSessionTest}
-        options={{ title: 'Cooking Session Tests' }}
-      />
-      <Stack.Screen 
-        name="ContextTest" 
-        component={CookingContextTest}
-        options={{ title: 'Context Debug Test' }}
-      />
-      <Stack.Screen 
-        name="IndicatorDemo" 
-        component={CookingIndicatorDemo}
-        options={{ title: 'Cooking Indicator Demo' }}
-      />
-      <Stack.Screen 
-        name="IngredientTrackingDemo" 
-        component={IngredientTrackingDemo}
-        options={{ title: 'Ingredient Learning Demo' }}
-      />
-      <Stack.Screen 
-        name="DataDashboard" 
-        component={DataVisualizationDashboard}
-        options={{ title: 'Data Analytics' }}
-      />
-      <Stack.Screen 
-        name="PrivacyControls" 
-        component={PrivacyControls}
-        options={{ title: 'Privacy & Data Controls' }}
-      />
     </Stack.Navigator>
   );
 }
@@ -148,28 +97,13 @@ function TabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Recipes') {
-            iconName = focused ? 'book' : 'book-outline';
-          } else if (route.name === 'Admin') {
-            iconName = focused ? 'settings' : 'settings-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
         },
-        headerShown: false, // Hide header for tab navigator since stacks have their own
+        headerShown: false,
       })}
     >
       <Tab.Screen 
@@ -216,22 +150,10 @@ function TabNavigator() {
   );
 }
 
-// Wrapper component that has access to navigation context
-function AppContent() {
-  const navigation = useNavigation();
-  
-  return (
-    <View style={{ flex: 1 }}>
-      <TabNavigator />
-      <CookingIndicator navigation={navigation} />
-    </View>
-  );
-}
-
 export default function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
-      <AppContent />
+      <TabNavigator />
     </NavigationContainer>
   );
 }

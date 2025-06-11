@@ -58,34 +58,6 @@ export default function AdminScreen({ navigation }) {
       icon: 'school',
       onPress: () => navigation.navigate('ParsingTraining'),
     },
-    {
-      id: 'vector-demo',
-      title: 'Vector Search Demo',
-      description: 'Test vector similarity search and performance metrics',
-      icon: 'search',
-      onPress: () => navigation.navigate('VectorDemo'),
-    },
-    {
-      id: 'ingredient-tracking-demo',
-      title: 'Ingredient Learning Demo',
-      description: 'Test ingredient data collection for ML training',
-      icon: 'library',
-      onPress: () => navigation.navigate('IngredientTrackingDemo'),
-    },
-    {
-      id: 'data-dashboard',
-      title: 'Data Analytics Dashboard',
-      description: 'View insights and visualizations of your cooking data',
-      icon: 'bar-chart',
-      onPress: () => navigation.navigate('DataDashboard'),
-    },
-    {
-      id: 'privacy-controls',
-      title: 'Privacy & Data Controls',
-      description: 'Manage data collection consent and privacy settings',
-      icon: 'shield-checkmark',
-      onPress: () => navigation.navigate('PrivacyControls'),
-    },
   ];
 
   const renderAdminCard = (page) => (

@@ -24,11 +24,15 @@ class NotificationService {
   }
 
   async initialize() {
-    // Check if running in Expo Go
-    const isExpoGo = Constants.appOwnership === 'expo';
-    
-    if (isExpoGo) {
-      console.log('Running in Expo Go - Timer notifications will work but background persistence is limited');
+    try {
+      // Check if running in Expo Go
+      const isExpoGo = Constants.appOwnership === 'expo';
+      
+      if (isExpoGo) {
+        console.log('Running in Expo Go - Timer notifications will work but background persistence is limited');
+      }
+    } catch (error) {
+      console.log('Constants not available in this environment');
     }
     
     // Clear all pending notifications on startup
