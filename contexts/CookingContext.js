@@ -339,8 +339,8 @@ const CookingContext = createContext();
 export function CookingProvider({ children }) {
   const [cookingState, dispatch] = useReducer(cookingReducer, initialCookingState);
   
-  // Debug logging
-  console.log('CookingProvider rendering, cookingState:', typeof cookingState, cookingState ? 'defined' : 'undefined');
+  // Debug logging (commented out to reduce noise)
+  // console.log('CookingProvider rendering, cookingState:', typeof cookingState, cookingState ? 'defined' : 'undefined');
 
   // Auto-save state to AsyncStorage when it changes
   useEffect(() => {

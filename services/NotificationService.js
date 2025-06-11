@@ -65,7 +65,11 @@ class NotificationService {
 
     // Set up notification listeners
     this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
+      console.log('🔔 Notification received (app in foreground):', {
+        title: notification.request.content.title,
+        body: notification.request.content.body,
+        data: notification.request.content.data
+      });
     });
 
     this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
@@ -89,10 +93,14 @@ class NotificationService {
     
     console.log(`Scheduling notification for ${timerName} in ${seconds} seconds (${minutes} minutes)`);
     
-    // For Expo notifications, we need to use a date trigger for proper scheduling
-    const trigger = new Date(Date.now() + (seconds * 1000));
+    // Use the modern trigger format to avoid deprecation warning
+    const triggerDate = new Date(Date.now() + (seconds * 1000));
+    const trigger = {
+      type: 'date',
+      date: triggerDate,
+    };
     
-    console.log('Notification will trigger at:', trigger.toLocaleTimeString());
+    console.log('Notification will trigger at:', triggerDate.toLocaleTimeString());
 
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
@@ -110,6 +118,12 @@ class NotificationService {
 
     // Store notification ID for cancellation
     await this.storeNotificationId(timerId, notificationId);
+    
+    console.log('✅ Notification scheduled successfully, ID:', notificationId);
+    
+    // Debug: Check how many notifications are now scheduled
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    console.log(`📅 Total scheduled notifications: ${scheduled.length}`);
     
     return notificationId;
   }
