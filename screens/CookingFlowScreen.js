@@ -59,7 +59,7 @@ export default function CookingFlowScreen({ route, navigation }) {
   useEffect(() => {
     if (resumeSession && isActive && activeRecipe) {
       // When resuming, try to find the full recipe from the recipes list
-      console.log('Resuming session for recipe ID:', activeRecipe);
+      // console.log('Resuming session for recipe ID:', activeRecipe);
       const fullRecipe = recipes.find(r => r.id === activeRecipe);
       
       if (fullRecipe) {
