@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
@@ -136,16 +135,16 @@ export default function IngredientListScreen({ navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={commonStyles.container}>
+      <View style={commonStyles.container}>
         <View style={[commonStyles.container, commonStyles.centerContent]}>
           <Text>Loading ingredients...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={commonStyles.container}>
+    <View style={commonStyles.container}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -190,7 +189,7 @@ export default function IngredientListScreen({ navigation }) {
           />
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -200,7 +199,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   header: {
-    paddingTop: 0,
+    marginTop: 20,
     paddingBottom: 20,
   },
   title: {

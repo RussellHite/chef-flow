@@ -8,7 +8,6 @@ import {
   FlatList,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
@@ -134,7 +133,7 @@ export default function ParsingTrainingScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={commonStyles.container}>
+    <View style={commonStyles.container}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Parsing Training Data</Text>
@@ -194,7 +193,7 @@ export default function ParsingTrainingScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -205,7 +204,7 @@ const styles = StyleSheet.create({
   },
   
   header: {
-    paddingTop: 0,
+    marginTop: 20,
     paddingBottom: 20,
   },
   
