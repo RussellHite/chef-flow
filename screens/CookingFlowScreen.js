@@ -18,7 +18,13 @@ import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
 
 export default function CookingFlowScreen({ route, navigation }) {
-  const { recipe, initialStepIndex = 0, resumeSession = false } = route.params || {};
+  const { 
+    recipe, 
+    recipeId, 
+    initialStepIndex = 0, 
+    resumeSession = false, 
+    resumeFromNotification = false 
+  } = route.params || {};
   
   // Get recipes context to fetch recipe when resuming
   const { recipes } = useRecipes();
@@ -57,7 +63,25 @@ export default function CookingFlowScreen({ route, navigation }) {
 
   // Determine which recipe to use
   useEffect(() => {
-    if (resumeSession && isActive && activeRecipe) {
+    if (resumeFromNotification && recipeId) {
+      // When resuming from notification, look up recipe by ID
+      console.log('🔍 Looking up recipe from notification:', recipeId);
+      const fullRecipe = recipes.find(r => r.id === recipeId);
+      
+      if (fullRecipe) {
+        console.log('✅ Found recipe for notification:', fullRecipe.title);
+        setWorkingRecipe(fullRecipe);
+      } else {
+        console.log('⚠️ Recipe not found for notification, using active recipe');
+        // Fallback to active recipe if available
+        if (activeRecipe) {
+          const activeFullRecipe = recipes.find(r => r.id === activeRecipe);
+          if (activeFullRecipe) {
+            setWorkingRecipe(activeFullRecipe);
+          }
+        }
+      }
+    } else if (resumeSession && isActive && activeRecipe) {
       // When resuming, try to find the full recipe from the recipes list
       // console.log('Resuming session for recipe ID:', activeRecipe);
       const fullRecipe = recipes.find(r => r.id === activeRecipe);
@@ -88,7 +112,7 @@ export default function CookingFlowScreen({ route, navigation }) {
       navigation.goBack();
       return;
     }
-  }, [recipe, resumeSession, isActive, rawState, activeRecipe, recipes]);
+  }, [recipe, recipeId, resumeSession, resumeFromNotification, isActive, rawState, activeRecipe, recipes]);
 
   // These will be calculated inside the render when workingRecipe is available
   
