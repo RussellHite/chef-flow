@@ -93,7 +93,7 @@ export default function AdminScreen({ navigation }) {
           {adminPages.map(renderAdminCard)}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
