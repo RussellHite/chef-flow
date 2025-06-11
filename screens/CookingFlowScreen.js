@@ -63,8 +63,8 @@ export default function CookingFlowScreen({ route, navigation }) {
 
   // Determine which recipe to use
   useEffect(() => {
-    if (resumeFromNotification && recipeId) {
-      // When resuming from notification, look up recipe by ID
+    if (resumeFromNotification && recipeId && !workingRecipe) {
+      // When resuming from notification, look up recipe by ID (only if not already set)
       console.log('🔍 Looking up recipe from notification:', recipeId);
       const fullRecipe = recipes.find(r => r.id === recipeId);
       
@@ -81,7 +81,7 @@ export default function CookingFlowScreen({ route, navigation }) {
           }
         }
       }
-    } else if (resumeSession && isActive && activeRecipe) {
+    } else if (resumeSession && isActive && activeRecipe && !workingRecipe) {
       // When resuming, try to find the full recipe from the recipes list
       // console.log('Resuming session for recipe ID:', activeRecipe);
       const fullRecipe = recipes.find(r => r.id === activeRecipe);
