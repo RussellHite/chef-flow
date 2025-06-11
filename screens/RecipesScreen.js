@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Alert
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
 import { colors } from '../styles/colors';
@@ -114,7 +113,7 @@ export default function RecipesScreen({ navigation, route }) {
   );
 
   return (
-    <SafeAreaView style={commonStyles.container}>
+    <View style={commonStyles.container}>
       <View style={styles.container}>
         {recipes.length === 0 ? (
           renderEmptyState()
@@ -153,6 +152,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 20,
     marginBottom: 20,
   },
   headerTitle: {
