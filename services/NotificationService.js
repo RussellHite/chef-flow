@@ -73,11 +73,21 @@ class NotificationService {
     });
 
     this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('🔔 Timer notification tapped:', response.notification.request.content.data);
-      const { timerId, recipeId, stepIndex } = response.notification.request.content.data;
+      console.log('🔔 ANY notification response received:', {
+        actionIdentifier: response.actionIdentifier,
+        userText: response.userText,
+        notification: {
+          title: response.notification.request.content.title,
+          body: response.notification.request.content.body,
+          data: response.notification.request.content.data
+        }
+      });
+      
+      const { timerId, recipeId, stepIndex } = response.notification.request.content.data || {};
       
       // Handle deep linking to the cooking screen
-      if (timerId && recipeId) {
+      if (timerId || recipeId) {
+        console.log('🚀 Processing timer notification with data:', { timerId, recipeId, stepIndex });
         this.handleTimerNotificationTap(timerId, recipeId, stepIndex);
       } else {
         console.log('⚠️ Notification missing timer/recipe data:', { timerId, recipeId, stepIndex });
@@ -92,6 +102,12 @@ class NotificationService {
     const seconds = Math.max(1, Math.round(minutes * 60));
     
     console.log(`Scheduling notification for ${timerName} in ${seconds} seconds (${minutes} minutes)`);
+    console.log('🔍 Notification data will include:', { 
+      timerId,
+      recipeId: recipeData?.recipeId,
+      stepIndex: recipeData?.stepIndex,
+      fullRecipeData: recipeData
+    });
     
     // Use the modern trigger format to avoid deprecation warning
     const triggerDate = new Date(Date.now() + (seconds * 1000));
