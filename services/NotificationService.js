@@ -191,6 +191,7 @@ class NotificationService {
     try {
       // Check if there's an active cooking session first
       const activeCookingSession = await AsyncStorage.getItem('activeCookingSession');
+      console.log('🔍 Checking for active cooking session:', activeCookingSession ? 'Found' : 'Not found');
       
       if (activeCookingSession) {
         // Navigate to the active cooking session
@@ -210,22 +211,20 @@ class NotificationService {
         });
         console.log('📱 Navigation dispatched to CookingFlow');
       } else if (recipeId) {
-        console.log('⚠️ No active session, trying to find recipe:', recipeId);
-        // Fallback: navigate to specific recipe if no active session
-        const storedRecipes = await AsyncStorage.getItem('recipes');
-        if (storedRecipes) {
-          const recipes = JSON.parse(storedRecipes);
-          const recipe = recipes.find(r => r.id === recipeId);
-          
-          if (recipe) {
-            console.log('✅ Found recipe, navigating:', recipe.title);
-            NavigationService.navigateToCookingFlow(recipe, stepIndex || 0);
-          } else {
-            console.log('❌ Recipe not found:', recipeId);
+        console.log('⚠️ No active session found, but we have recipeId:', recipeId);
+        console.log('🔄 Attempting navigation to CookingFlow with recipe ID');
+        
+        // Since recipes aren't persisted to AsyncStorage, try to navigate 
+        // directly to CookingFlow and let it handle the recipe loading
+        NavigationService.navigate('Recipes', {
+          screen: 'CookingFlow',
+          params: { 
+            recipeId: recipeId,
+            stepIndex: stepIndex || 0,
+            resumeFromNotification: true
           }
-        } else {
-          console.log('❌ No stored recipes found');
-        }
+        });
+        console.log('📱 Navigation dispatched to CookingFlow with recipe ID');
       } else {
         console.log('🏠 No recipe data, navigating to recipes screen');
         // Last resort: navigate to recipes screen
