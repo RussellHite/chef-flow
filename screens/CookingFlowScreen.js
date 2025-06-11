@@ -70,7 +70,11 @@ export default function CookingFlowScreen({ route, navigation }) {
       
       if (fullRecipe) {
         console.log('✅ Found recipe for notification:', fullRecipe.title);
+        console.log('🎯 Will navigate to step:', initialStepIndex);
         setWorkingRecipe(fullRecipe);
+        
+        // Set the current step index to the notification step
+        setCurrentStepIndex(initialStepIndex);
       } else {
         console.log('⚠️ Recipe not found for notification, using active recipe');
         // Fallback to active recipe if available

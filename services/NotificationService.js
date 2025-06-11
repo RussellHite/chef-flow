@@ -212,7 +212,7 @@ class NotificationService {
         console.log('📱 Navigation dispatched to CookingFlow');
       } else if (recipeId) {
         console.log('⚠️ No active session found, but we have recipeId:', recipeId);
-        console.log('🔄 Attempting navigation to CookingFlow with recipe ID');
+        console.log('🔄 Attempting navigation to CookingFlow with recipe ID and step:', stepIndex);
         
         // Since recipes aren't persisted to AsyncStorage, try to navigate 
         // directly to CookingFlow and let it handle the recipe loading
@@ -220,7 +220,7 @@ class NotificationService {
           screen: 'CookingFlow',
           params: { 
             recipeId: recipeId,
-            stepIndex: stepIndex || 0,
+            initialStepIndex: stepIndex || 0,
             resumeFromNotification: true
           }
         });
