@@ -165,6 +165,17 @@ class TimerService {
             timer.remainingTime = newRemainingTime;
             shouldNotify = true;
             console.log(`Timer ${id} completed - overflow triggered`);
+            
+            // Send immediate notification since scheduled one might not fire
+            NotificationService.sendImmediateNotification(
+              'Timer Complete!',
+              timer.name || 'Your timer is done',
+              {
+                timerId: id,
+                recipeId: timer.recipeData?.recipeId,
+                stepIndex: timer.recipeData?.stepIndex
+              }
+            );
           } else {
             timer.remainingTime = newRemainingTime;
           }

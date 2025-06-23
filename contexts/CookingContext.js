@@ -8,8 +8,9 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Storage key for persisting cooking sessions
+// Storage keys for persisting cooking sessions
 const COOKING_SESSION_STORAGE_KEY = 'chef-flow-cooking-session';
+const ACTIVE_RECIPE_STORAGE_KEY = 'chef-flow-active-recipe';
 
 // Initial cooking state
 const initialCookingState = {
@@ -22,6 +23,7 @@ const initialCookingState = {
   activeRecipe: null,          // Recipe ID being cooked
   recipeName: '',              // Recipe name for display
   totalSteps: 0,               // Total number of steps
+  fullRecipe: null,            // Full recipe object
   
   // Progress Tracking
   currentStep: 0,              // Current step index (0-based)
@@ -91,6 +93,7 @@ function cookingReducer(state, action) {
         activeRecipe: recipeId,
         recipeName: recipeName || recipe?.title || 'Unknown Recipe',
         totalSteps: totalSteps || recipe?.steps?.length || 0,
+        fullRecipe: recipe, // Store the full recipe object
         
         // Progress Tracking
         currentStep: startStep,
@@ -350,7 +353,14 @@ export function CookingProvider({ children }) {
         if (cookingState && typeof cookingState === 'object') {
           if (cookingState.isActiveCookingSession) {
             try {
-              const serializedState = JSON.stringify(cookingState);
+              // Store recipe separately to avoid duplication in session state
+              if (cookingState.fullRecipe) {
+                await AsyncStorage.setItem(ACTIVE_RECIPE_STORAGE_KEY, JSON.stringify(cookingState.fullRecipe));
+              }
+              
+              // Store session state without the full recipe
+              const { fullRecipe, ...sessionStateWithoutRecipe } = cookingState;
+              const serializedState = JSON.stringify(sessionStateWithoutRecipe);
               await AsyncStorage.setItem(COOKING_SESSION_STORAGE_KEY, serializedState);
             } catch (serializeError) {
               console.warn('Failed to serialize cooking state:', serializeError);
@@ -358,6 +368,7 @@ export function CookingProvider({ children }) {
           } else {
             // Clear storage when no active session
             await AsyncStorage.removeItem(COOKING_SESSION_STORAGE_KEY);
+            await AsyncStorage.removeItem(ACTIVE_RECIPE_STORAGE_KEY);
           }
         }
       } catch (error) {
@@ -381,14 +392,31 @@ export function CookingProvider({ children }) {
           const maxSessionAge = 24 * 60 * 60 * 1000; // 24 hours
           
           if (sessionAge < maxSessionAge && sessionData.isActiveCookingSession) {
+            // Try to restore the full recipe
+            let fullRecipe = null;
+            try {
+              const savedRecipe = await AsyncStorage.getItem(ACTIVE_RECIPE_STORAGE_KEY);
+              if (savedRecipe) {
+                fullRecipe = JSON.parse(savedRecipe);
+              }
+            } catch (recipeError) {
+              console.warn('Failed to restore full recipe:', recipeError);
+            }
+            
             dispatch({
               type: COOKING_ACTIONS.RESTORE_SESSION,
-              payload: { sessionData }
+              payload: { 
+                sessionData: {
+                  ...sessionData,
+                  fullRecipe
+                }
+              }
             });
             console.log('Restored cooking session:', sessionData.recipeName);
           } else {
             // Clean up old session
             await AsyncStorage.removeItem(COOKING_SESSION_STORAGE_KEY);
+            await AsyncStorage.removeItem(ACTIVE_RECIPE_STORAGE_KEY);
           }
         }
       } catch (error) {

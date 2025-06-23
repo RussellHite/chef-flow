@@ -13,7 +13,7 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
   }),
 });
 
@@ -39,12 +39,25 @@ class NotificationService {
     await Notifications.cancelAllScheduledNotificationsAsync();
     console.log('Cleared all pending notifications');
     
-    // Request permissions
+    // Request permissions with more explicit options
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     
     if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          allowAnnouncements: true,
+        },
+        android: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          priority: 'max',
+        },
+      });
       finalStatus = status;
     }
     
@@ -52,6 +65,8 @@ class NotificationService {
       console.log('Failed to get push token for push notification!');
       return false;
     }
+    
+    console.log('✅ Notification permissions granted');
 
     // Configure notification channel for Android
     if (Platform.OS === 'android') {
@@ -97,6 +112,36 @@ class NotificationService {
     return true;
   }
 
+  async sendImmediateNotification(title, body, data = {}) {
+    try {
+      console.log('🔔 Sending immediate notification:', { title, body, data });
+      
+      const content = {
+        title,
+        body,
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        data,
+      };
+      
+      // Add Android-specific channel
+      if (Platform.OS === 'android') {
+        content.channelId = 'timer-channel';
+      }
+      
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content,
+        trigger: null, // null trigger = immediate notification
+      });
+      
+      console.log('✅ Immediate notification sent, ID:', notificationId);
+      return notificationId;
+    } catch (error) {
+      console.error('❌ Error sending immediate notification:', error);
+      return null;
+    }
+  }
+
   async scheduleTimerNotification(timerId, timerName, minutes, recipeData = null) {
     // Ensure we have a valid time in seconds
     const seconds = Math.max(1, Math.round(minutes * 60));
@@ -118,17 +163,25 @@ class NotificationService {
     
     console.log('Notification will trigger at:', triggerDate.toLocaleTimeString());
 
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Timer Complete!',
-        body: timerName || `Your ${minutes} minute timer is done`,
-        sound: true,
-        data: { 
-          timerId,
-          recipeId: recipeData?.recipeId,
-          stepIndex: recipeData?.stepIndex,
-        },
+    const content = {
+      title: 'Timer Complete!',
+      body: timerName || `Your ${minutes} minute timer is done`,
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+      data: { 
+        timerId,
+        recipeId: recipeData?.recipeId,
+        stepIndex: recipeData?.stepIndex,
       },
+    };
+    
+    // Add Android-specific channel
+    if (Platform.OS === 'android') {
+      content.channelId = 'timer-channel';
+    }
+    
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content,
       trigger,
     });
 
@@ -190,7 +243,7 @@ class NotificationService {
     
     try {
       // Check if there's an active cooking session first
-      const activeCookingSession = await AsyncStorage.getItem('activeCookingSession');
+      const activeCookingSession = await AsyncStorage.getItem('chef-flow-cooking-session');
       console.log('🔍 Checking for active cooking session:', activeCookingSession ? 'Found' : 'Not found');
       
       if (activeCookingSession) {
@@ -198,27 +251,58 @@ class NotificationService {
         const sessionData = JSON.parse(activeCookingSession);
         console.log('✅ Found active cooking session, navigating...', {
           recipeName: sessionData.recipeName,
-          isActive: sessionData.isActive
+          isActive: sessionData.isActiveCookingSession,
+          currentStep: sessionData.currentStep
         });
         
-        // Navigate to cooking flow with resume flag
+        // Try to get the full recipe from storage
+        let fullRecipe = null;
+        try {
+          const savedRecipe = await AsyncStorage.getItem('chef-flow-active-recipe');
+          if (savedRecipe) {
+            fullRecipe = JSON.parse(savedRecipe);
+            console.log('📖 Retrieved full recipe from storage');
+          }
+        } catch (recipeError) {
+          console.warn('Failed to retrieve full recipe:', recipeError);
+        }
+        
+        // Navigate to cooking flow with recipe and step info
         NavigationService.navigate('Recipes', {
           screen: 'CookingFlow',
           params: { 
             resumeSession: true,
-            recipeTitle: sessionData.recipeName
+            recipe: fullRecipe,
+            recipeId: recipeId || sessionData.activeRecipe,
+            initialStepIndex: stepIndex !== undefined ? stepIndex : sessionData.currentStep,
+            resumeFromNotification: true
           }
         });
-        console.log('📱 Navigation dispatched to CookingFlow');
+        console.log('📱 Navigation dispatched to CookingFlow with step:', stepIndex !== undefined ? stepIndex : sessionData.currentStep);
       } else if (recipeId) {
         console.log('⚠️ No active session found, but we have recipeId:', recipeId);
         console.log('🔄 Attempting navigation to CookingFlow with recipe ID and step:', stepIndex);
         
-        // Since recipes aren't persisted to AsyncStorage, try to navigate 
-        // directly to CookingFlow and let it handle the recipe loading
+        // Try to get the recipe from storage even without active session
+        let fullRecipe = null;
+        try {
+          const savedRecipe = await AsyncStorage.getItem('chef-flow-active-recipe');
+          if (savedRecipe) {
+            fullRecipe = JSON.parse(savedRecipe);
+            if (fullRecipe.id === recipeId) {
+              console.log('📖 Found matching recipe in storage');
+            } else {
+              fullRecipe = null;
+            }
+          }
+        } catch (recipeError) {
+          console.warn('Failed to retrieve recipe:', recipeError);
+        }
+        
         NavigationService.navigate('Recipes', {
           screen: 'CookingFlow',
           params: { 
+            recipe: fullRecipe,
             recipeId: recipeId,
             initialStepIndex: stepIndex || 0,
             resumeFromNotification: true

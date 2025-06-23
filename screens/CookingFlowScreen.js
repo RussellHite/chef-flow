@@ -63,25 +63,45 @@ export default function CookingFlowScreen({ route, navigation }) {
 
   // Determine which recipe to use
   useEffect(() => {
-    if (resumeFromNotification && recipeId && !workingRecipe) {
-      // When resuming from notification, look up recipe by ID (only if not already set)
-      console.log('🔍 Looking up recipe from notification:', recipeId);
-      const fullRecipe = recipes.find(r => r.id === recipeId);
-      
-      if (fullRecipe) {
-        console.log('✅ Found recipe for notification:', fullRecipe.title);
+    if (resumeFromNotification && !workingRecipe) {
+      // When resuming from notification, prefer the passed recipe first
+      if (recipe) {
+        console.log('✅ Using recipe passed from notification:', recipe.title);
         console.log('🎯 Will navigate to step:', initialStepIndex);
-        setWorkingRecipe(fullRecipe);
-        
-        // Set the current step index to the notification step
+        setWorkingRecipe(recipe);
         setCurrentStepIndex(initialStepIndex);
-      } else {
-        console.log('⚠️ Recipe not found for notification, using active recipe');
-        // Fallback to active recipe if available
-        if (activeRecipe) {
-          const activeFullRecipe = recipes.find(r => r.id === activeRecipe);
-          if (activeFullRecipe) {
-            setWorkingRecipe(activeFullRecipe);
+        
+        // If we have an active session, navigate to the specified step
+        if (isActive && goToStepIndex) {
+          setTimeout(() => {
+            goToStepIndex(initialStepIndex);
+          }, 100);
+        }
+      } else if (recipeId) {
+        // Try to find recipe by ID
+        console.log('🔍 Looking up recipe from notification:', recipeId);
+        const fullRecipe = recipes.find(r => r.id === recipeId);
+        
+        if (fullRecipe) {
+          console.log('✅ Found recipe for notification:', fullRecipe.title);
+          console.log('🎯 Will navigate to step:', initialStepIndex);
+          setWorkingRecipe(fullRecipe);
+          setCurrentStepIndex(initialStepIndex);
+          
+          // If we have an active session, navigate to the specified step
+          if (isActive && goToStepIndex) {
+            setTimeout(() => {
+              goToStepIndex(initialStepIndex);
+            }, 100);
+          }
+        } else {
+          console.log('⚠️ Recipe not found for notification, using active recipe');
+          // Fallback to active recipe if available
+          if (activeRecipe) {
+            const activeFullRecipe = recipes.find(r => r.id === activeRecipe);
+            if (activeFullRecipe) {
+              setWorkingRecipe(activeFullRecipe);
+            }
           }
         }
       }
@@ -135,9 +155,12 @@ export default function CookingFlowScreen({ route, navigation }) {
   // Sync local step index with global cooking context
   useEffect(() => {
     if (isActive && globalStepIndex !== currentStepIndex) {
-      setCurrentStepIndex(globalStepIndex);
+      // Don't override if we just navigated from notification
+      if (!resumeFromNotification) {
+        setCurrentStepIndex(globalStepIndex);
+      }
     }
-  }, [globalStepIndex, isActive]);
+  }, [globalStepIndex, isActive, resumeFromNotification]);
 
   useEffect(() => {
     navigation.setOptions({
