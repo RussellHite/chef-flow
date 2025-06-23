@@ -15,7 +15,7 @@ import { commonStyles } from '../styles/common';
 import { useRecipes } from '../contexts/RecipeContext';
 
 export default function RecipesScreen({ navigation, route }) {
-  const { recipes, addRecipe } = useRecipes();
+  const { recipes, addRecipe, isLoading: recipesLoading } = useRecipes();
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -115,7 +115,11 @@ export default function RecipesScreen({ navigation, route }) {
   return (
     <View style={commonStyles.container}>
       <View style={styles.container}>
-        {recipes.length === 0 ? (
+        {recipesLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading recipes...</Text>
+          </View>
+        ) : recipes.length === 0 ? (
           renderEmptyState()
         ) : (
           <>
@@ -251,5 +255,14 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     minWidth: 200,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    ...typography.body,
+    color: colors.textSecondary,
   },
 });

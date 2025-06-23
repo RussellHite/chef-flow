@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { colors } from '../styles/colors';
@@ -71,15 +71,69 @@ export default function StructuredIngredient({
   };
 
   const handleEditSave = () => {
-    // Build new ingredient text from edited components
-    const baseIngredientName = structured?.ingredient?.name || 'ingredient';
+    // For complex ingredients, we need to be smarter about preserving the original format
+    const originalIngredientText = originalText || displayText || '';
+    
+    // Get the unit data for proper label/plural handling
     const unitData = MEASUREMENT_UNITS.find(u => u.value === editUnit);
     const unitLabel = parseFloat(editQuantity) === 1 ? unitData?.label : unitData?.plural;
     
-    let newText = `${editQuantity} ${unitLabel} ${baseIngredientName}`;
-    if (editPreparation.trim()) {
-      newText += `, ${editPreparation.trim()}`;
+    // Strategy: Try to preserve as much of the original text structure as possible
+    // Only replace the parts that were actually edited
+    
+    let newText = '';
+    
+    // Check if this is a parenthetical quantity format like "2 (5 ounce) cans"
+    const parentheticalMatch = originalIngredientText.match(/^\d+\s*\(([^)]+)\)\s*(.+)/);
+    
+    if (parentheticalMatch) {
+      // Preserve parenthetical format
+      const [, parentheticalContent, restOfIngredient] = parentheticalMatch;
+      newText = `${editQuantity} (${parentheticalContent}) ${restOfIngredient}`;
+    } else {
+      // Regular format - try to preserve everything after quantity and unit
+      let remainingText = originalIngredientText;
+      
+      // Remove the original quantity
+      remainingText = remainingText.replace(/^\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?\s*/, '');
+      
+      // Remove the original unit (if it matches what we parsed)
+      if (structured?.unit) {
+        const unitPattern = new RegExp(`^(${structured.unit.name}|${structured.unit.plural})\\s+`, 'i');
+        remainingText = remainingText.replace(unitPattern, '');
+      }
+      
+      // Build new text with edited quantity and unit
+      newText = `${editQuantity} ${unitLabel}`;
+      
+      // Add the remaining ingredient description
+      if (remainingText.trim()) {
+        newText += ` ${remainingText.trim()}`;
+      } else if (structured?.ingredient?.name) {
+        // Fallback to structured ingredient name
+        newText += ` ${structured.ingredient.name}`;
+      }
+      
+      // Handle preparation if it was edited
+      if (editPreparation.trim()) {
+        // Check if we need to replace existing preparation or add new
+        const hasExistingPrep = originalIngredientText.includes(',');
+        if (hasExistingPrep) {
+          // Replace everything after the last comma
+          newText = newText.replace(/,\s*[^,]*$/, `, ${editPreparation.trim()}`);
+        } else {
+          // Add new preparation
+          newText += `, ${editPreparation.trim()}`;
+        }
+      }
     }
+    
+    console.log('🔧 StructuredIngredient handleEditSave:', {
+      originalText: originalIngredientText,
+      newText,
+      editQuantity,
+      unitLabel
+    });
     
     onEdit?.(ingredient, newText);
     setIsEditing(false);
@@ -775,6 +829,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.primary,
+    overflow: Platform.OS === 'android' ? 'visible' : 'hidden',
   },
 
   quantityRow: {
@@ -782,6 +837,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     gap: 8,
+    overflow: Platform.OS === 'android' ? 'visible' : 'hidden',
+    zIndex: Platform.OS === 'android' ? 1000 : 1,
   },
 
   quantityButton: {
@@ -813,14 +870,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 4,
-    minWidth: 80,
-    height: 40,
+    minWidth: Platform.OS === 'android' ? 100 : 80,
+    height: Platform.OS === 'android' ? 50 : 40,
     justifyContent: 'center',
+    overflow: Platform.OS === 'android' ? 'visible' : 'hidden',
   },
 
   picker: {
-    height: 40,
+    height: Platform.OS === 'android' ? 50 : 40,
     color: colors.text,
+    marginTop: Platform.OS === 'android' ? -8 : 0,
+    marginBottom: Platform.OS === 'android' ? -8 : 0,
   },
 
   ingredientNameEdit: {

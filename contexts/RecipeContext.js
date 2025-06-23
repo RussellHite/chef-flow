@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const RecipeContext = createContext();
+const RECIPES_STORAGE_KEY = 'chef-flow-recipes';
 
 export const useRecipes = () => {
   const context = useContext(RecipeContext);
@@ -133,7 +135,50 @@ Garnish chicken with parsley to serve.`,
 };
 
 export const RecipeProvider = ({ children }) => {
-  const [recipes, setRecipes] = useState([sampleRecipe]);
+  const [recipes, setRecipes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load recipes from AsyncStorage on mount
+  useEffect(() => {
+    loadRecipes();
+  }, []);
+
+  // Save recipes to AsyncStorage whenever they change
+  useEffect(() => {
+    if (!isLoading && recipes.length > 0) {
+      saveRecipes();
+    }
+  }, [recipes, isLoading]);
+
+  const loadRecipes = async () => {
+    try {
+      const savedRecipes = await AsyncStorage.getItem(RECIPES_STORAGE_KEY);
+      if (savedRecipes) {
+        const parsedRecipes = JSON.parse(savedRecipes);
+        console.log(`Loaded ${parsedRecipes.length} recipes from storage`);
+        setRecipes(parsedRecipes);
+      } else {
+        // First time - use sample recipe
+        console.log('No saved recipes found, using sample recipe');
+        setRecipes([sampleRecipe]);
+      }
+    } catch (error) {
+      console.error('Error loading recipes:', error);
+      // Fallback to sample recipe on error
+      setRecipes([sampleRecipe]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveRecipes = async () => {
+    try {
+      await AsyncStorage.setItem(RECIPES_STORAGE_KEY, JSON.stringify(recipes));
+      console.log(`Saved ${recipes.length} recipes to storage`);
+    } catch (error) {
+      console.error('Error saving recipes:', error);
+    }
+  };
 
   const addRecipe = (recipe) => {
     setRecipes(prev => [recipe, ...prev]);
@@ -156,6 +201,7 @@ export const RecipeProvider = ({ children }) => {
     addRecipe,
     updateRecipe,
     deleteRecipe,
+    isLoading,
   };
 
   return (

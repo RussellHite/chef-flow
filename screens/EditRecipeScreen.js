@@ -317,6 +317,13 @@ export default function EditRecipeScreen({ route, navigation }) {
 
 
   const handleIngredientEdit = async (ingredient, newText) => {
+    console.log('🔧 EditRecipeScreen handleIngredientEdit:', {
+      ingredientId: ingredient.id,
+      originalText: ingredient.originalText,
+      newText,
+      isStructured: !!ingredient.structured
+    });
+    
     try {
       let updatedIngredient;
       
@@ -332,11 +339,37 @@ export default function EditRecipeScreen({ route, navigation }) {
       
       // Check if this is already a structured ingredient object (from manual training)
       if (typeof ingredient === 'object' && ingredient.structured && newText) {
-        // This is a pre-structured ingredient from manual training
-        updatedIngredient = ingredient;
-        setIngredients(prev => 
-          prev.map(ing => ing.id === ingredient.id ? ingredient : ing)
-        );
+        // Re-parse the edited text to update the structured data
+        try {
+          const structured = await import('../services/ingredientServiceInstance.js')
+            .then(module => module.default.parseIngredientText(newText.trim()));
+          
+          updatedIngredient = {
+            ...ingredient,
+            originalText: newText.trim(),
+            structured: structured,
+            displayText: structured.isStructured 
+              ? await import('../services/ingredientServiceInstance.js')
+                  .then(module => module.default.formatIngredientForDisplay(structured))
+              : newText.trim()
+          };
+          
+          setIngredients(prev => 
+            prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          );
+        } catch (error) {
+          console.warn('Error parsing structured ingredient:', error);
+          // Fallback to updating just the text
+          updatedIngredient = {
+            ...ingredient,
+            originalText: newText.trim(),
+            displayText: newText.trim()
+          };
+          
+          setIngredients(prev => 
+            prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          );
+        }
       } else if (newText && newText.trim()) {
         // Original parsing logic for text-based edits
         try {
@@ -375,11 +408,13 @@ export default function EditRecipeScreen({ route, navigation }) {
 
       // Schedule a comprehensive step content update after ingredient change
       if (updatedIngredient) {
+        console.log('🔧 Scheduling step update with ingredient:', updatedIngredient.id);
         // Use a debounced update to handle multiple rapid changes
         clearTimeout(window.stepUpdateTimeout);
         window.stepUpdateTimeout = setTimeout(() => {
           try {
-            updateAllStepsContent();
+            // Pass the updated ingredient to ensure we use the latest data
+            updateAllStepsContent(updatedIngredient);
           } catch (stepError) {
             console.warn('Error updating steps content:', stepError);
           }
@@ -391,11 +426,11 @@ export default function EditRecipeScreen({ route, navigation }) {
     }
   };
 
-  const updateAllStepsContent = () => {
+  const updateAllStepsContent = (updatedIngredient = null) => {
     setEditedRecipe(prev => {
       if (!prev.steps || !ingredients) return prev;
       
-      console.log('Updating all steps content from original...');
+      console.log('Updating all steps content from original...', updatedIngredient ? `with updated ingredient: ${updatedIngredient.id}` : 'using current state');
       
       // Create a new Map with current original content, adding missing entries
       const currentOriginalContent = new Map(originalStepContent);
@@ -429,11 +464,149 @@ export default function EditRecipeScreen({ route, navigation }) {
         
         console.log(`Processing step ${stepIndex + 1}: "${originalContent}"`);
         
+        // Special handling for action-generated steps
+        // These are steps that were created from ingredient actions and have a single ingredient
+        const isActionGeneratedStep = step.ingredients && step.ingredients.length === 1;
+        
+        console.log(`🔧 Step ${stepIndex + 1} debug:`, {
+          stepId: step.id,
+          isActionGenerated: isActionGeneratedStep,
+          stepIngredients: step.ingredients,
+          hasUpdatedIngredient: !!updatedIngredient,
+          updatedIngredientId: updatedIngredient?.id
+        });
+        
+        if (isActionGeneratedStep && updatedIngredient) {
+          const stepIngredient = step.ingredients[0];
+          // Handle both string IDs and object formats
+          const stepIngredientId = typeof stepIngredient === 'string' ? stepIngredient : stepIngredient?.id;
+          
+          console.log(`🔧 Comparing ingredient IDs: step=${stepIngredientId}, updated=${updatedIngredient.id}`);
+          
+          // Check if this step was generated from the updated ingredient
+          if (stepIngredientId === updatedIngredient.id) {
+            console.log(`🔧 MATCH! Updating action-generated step for ingredient: ${updatedIngredient.id}`);
+            
+            // Rebuild the step content with updated ingredient data
+            const ingredient = updatedIngredient;
+            console.log(`🔧 Ingredient preparation data:`, {
+              hasStructured: !!ingredient.structured,
+              hasPreparation: !!ingredient.structured?.preparation,
+              preparationName: ingredient.structured?.preparation?.name,
+              fullIngredient: ingredient
+            });
+            
+            if (ingredient.structured?.preparation?.name) {
+              const preparation = ingredient.structured.preparation.name;
+              
+              // Extract action words from preparation (like "chopped", "diced", etc.)
+              let actionMatch = preparation.match(/^(chopped|diced|sliced|minced|grated|shredded|peeled|crushed|juiced|zested|squeezed|mashed|pureed|blended|whipped|beaten|mixed|stirred|heated|cooked|boiled|fried|roasted|baked|grilled|steamed|sautéed)/i);
+              console.log(`🔧 Action match from preparation:`, { preparation, actionMatch });
+              
+              // If no action found in preparation, try to infer from step content
+              if (!actionMatch) {
+                const stepContent = originalContent.toLowerCase();
+                const stepActionMatch = stepContent.match(/^(chop|dice|slice|mince|grate|shred|peel|crush|juice|zest|squeeze|mash|puree|blend|whip|beat|mix|stir|heat|cook|boil|fry|roast|bake|grill|steam|sauté)\s/i);
+                if (stepActionMatch) {
+                  actionMatch = [stepActionMatch[0], stepActionMatch[1]];
+                  console.log(`🔧 Action inferred from step content:`, { stepContent, actionMatch });
+                }
+              }
+              
+              if (actionMatch) {
+                const action = actionMatch[1];
+                const quantity = ingredient.structured.quantity;
+                const unit = ingredient.structured.unit;
+                const ingredientName = ingredient.structured.ingredient?.name;
+                
+                // Rebuild step content like "Chop 2 medium onions"
+                let newStepContent = '';
+                
+                // Convert action to present tense and capitalize
+                const presentTenseAction = convertToPresentTense(action);
+                newStepContent += presentTenseAction.charAt(0).toUpperCase() + presentTenseAction.slice(1) + ' ';
+                
+                // Add quantity and unit
+                if (quantity !== null && quantity !== undefined) {
+                  newStepContent += quantity + ' ';
+                }
+                
+                if (unit) {
+                  const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
+                  newStepContent += unitName + ' ';
+                }
+                
+                // Add ingredient name
+                if (ingredientName) {
+                  newStepContent += ingredientName;
+                }
+                
+                updatedContent = newStepContent.trim();
+                console.log(`🔧 Rebuilt action step content: "${updatedContent}"`);
+                
+                // Update the stored original content so future updates work correctly
+                currentOriginalContent.set(step.id, updatedContent);
+              } else {
+                console.log(`🔧 No action match found in preparation: "${preparation}"`);
+              }
+            } else {
+              console.log(`🔧 No preparation data found, trying to infer action from step content`);
+              // Even without preparation, try to infer action from step content
+              const stepContent = originalContent.toLowerCase();
+              const stepActionMatch = stepContent.match(/^(chop|dice|slice|mince|grate|shred|peel|crush|juice|zest|squeeze|mash|puree|blend|whip|beat|mix|stir|heat|cook|boil|fry|roast|bake|grill|steam|sauté)\s/i);
+              if (stepActionMatch) {
+                const action = stepActionMatch[1];
+                const quantity = ingredient.structured.quantity;
+                const unit = ingredient.structured.unit;
+                const ingredientName = ingredient.structured.ingredient?.name;
+                
+                console.log(`🔧 Rebuilding step from inferred action:`, { action, quantity, unit, ingredientName });
+                
+                // Rebuild step content like "Juice 2 lemons"
+                let newStepContent = '';
+                
+                // Convert action to present tense and capitalize
+                const presentTenseAction = convertToPresentTense(action);
+                newStepContent += presentTenseAction.charAt(0).toUpperCase() + presentTenseAction.slice(1) + ' ';
+                
+                // Add quantity and unit
+                if (quantity !== null && quantity !== undefined) {
+                  newStepContent += quantity + ' ';
+                }
+                
+                if (unit) {
+                  const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
+                  newStepContent += unitName + ' ';
+                }
+                
+                // Add ingredient name
+                if (ingredientName) {
+                  newStepContent += ingredientName;
+                }
+                
+                updatedContent = newStepContent.trim();
+                console.log(`🔧 Rebuilt action step content from inferred action: "${updatedContent}"`);
+                
+                // Update the stored original content so future updates work correctly
+                currentOriginalContent.set(step.id, updatedContent);
+              }
+            }
+          } else {
+            console.log(`🔧 No ingredient ID match: step=${stepIngredientId}, updated=${updatedIngredient.id}`);
+          }
+        }
+        
+        // Create ingredients list with updated ingredient if provided
+        const currentIngredients = updatedIngredient 
+          ? ingredients.map(ing => ing.id === updatedIngredient.id ? updatedIngredient : ing)
+          : ingredients;
+        
         // Process each ingredient to see if it's mentioned in this step
-        ingredients.forEach(ingredient => {
+        currentIngredients.forEach(ingredient => {
           if (!ingredient.structured?.ingredient?.name) return;
           
           const ingredientName = ingredient.structured.ingredient.name;
+          console.log(`🔧 Processing ingredient: ${ingredientName}, quantity: ${ingredient.structured.quantity}`);
           const regex = new RegExp(`\\b${ingredientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
           
           if (regex.test(updatedContent)) {
@@ -772,6 +945,102 @@ export default function EditRecipeScreen({ route, navigation }) {
         return step;
       })
     }));
+  };
+
+  /**
+   * Convert action verbs to present tense for step instructions
+   */
+  const convertToPresentTense = (action) => {
+    if (!action) return '';
+    
+    // Common cooking verb conversions
+    const verbMap = {
+      // Past tense to present tense
+      'chopped': 'chop',
+      'diced': 'dice',
+      'sliced': 'slice',
+      'minced': 'mince',
+      'grated': 'grate',
+      'shredded': 'shred',
+      'peeled': 'peel',
+      'crushed': 'crush',
+      'julienned': 'julienne',
+      'cubed': 'cube',
+      'halved': 'halve',
+      'quartered': 'quarter',
+      'trimmed': 'trim',
+      'cored': 'core',
+      'pitted': 'pit',
+      'seeded': 'seed',
+      'sifted': 'sift',
+      'drained': 'drain',
+      'rinsed': 'rinse',
+      'dried': 'dry',
+      'juiced': 'juice',
+      'cooked': 'cook',
+      'roasted': 'roast',
+      'grilled': 'grill',
+      'steamed': 'steam',
+      'boiled': 'boil',
+      'fried': 'fry',
+      'sautéed': 'sauté',
+      'baked': 'bake',
+      'broiled': 'broil',
+      'melted': 'melt',
+      'heated': 'heat',
+      'mixed': 'mix',
+      'stirred': 'stir',
+      'beaten': 'beat',
+      'whisked': 'whisk',
+      'folded': 'fold',
+      'combined': 'combine',
+      
+      // Gerund (-ing) to present tense
+      'chopping': 'chop',
+      'dicing': 'dice',
+      'slicing': 'slice',
+      'mincing': 'mince',
+      'grating': 'grate',
+      'shredding': 'shred',
+      'peeling': 'peel',
+      'crushing': 'crush',
+      'mixing': 'mix',
+      'stirring': 'stir',
+      'cooking': 'cook',
+      'heating': 'heat',
+      'beating': 'beat',
+      'whisking': 'whisk',
+      'folding': 'fold',
+      'combining': 'combine'
+    };
+    
+    // Split action into words and convert each verb
+    const words = action.toLowerCase().split(/\s+/);
+    const convertedWords = words.map(word => {
+      // Remove common punctuation
+      const cleanWord = word.replace(/[,.]$/, '');
+      const punctuation = word.match(/[,.]$/) ? word.slice(-1) : '';
+      
+      // Check if word is in our verb map
+      if (verbMap[cleanWord]) {
+        return verbMap[cleanWord] + punctuation;
+      }
+      
+      // Handle regular past tense (-ed ending)
+      if (cleanWord.endsWith('ed') && cleanWord.length > 3) {
+        let base = cleanWord.slice(0, -2);
+        // Handle doubled consonants (e.g., 'chopped' -> 'chop')
+        if (base.length > 2 && base[base.length - 1] === base[base.length - 2]) {
+          base = base.slice(0, -1);
+        }
+        return base + punctuation;
+      }
+      
+      // Return original word if no conversion needed
+      return word;
+    });
+    
+    return convertedWords.join(' ');
   };
 
   return (

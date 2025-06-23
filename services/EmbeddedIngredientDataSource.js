@@ -126,7 +126,8 @@ class EmbeddedIngredientDataSource {
    * - "2 (5 oz) cans tomatoes"
    */
   async parseIngredientText(ingredientText) {
-    const text = ingredientText.trim();
+    // First, preprocess the text to fix common formatting issues
+    let text = this._preprocessIngredientText(ingredientText.trim());
     
     // Check if we have training data for similar ingredients
     const trainedResult = TrainingDataService.applyTrainingToIngredient(text);
@@ -582,6 +583,41 @@ class EmbeddedIngredientDataSource {
     });
     
     return ingredient;
+  }
+
+  /**
+   * Preprocess ingredient text to fix common formatting issues
+   * @param {string} text - Raw ingredient text
+   * @returns {string} Preprocessed text with formatting fixes
+   */
+  _preprocessIngredientText(text) {
+    if (!text) return text;
+    
+    // Add debug logging to see what we're working with
+    console.log('🔍 Raw ingredient input:', JSON.stringify(text));
+    
+    // Fix missing spaces between numbers and letters (e.g., "1cup" -> "1 cup")
+    // This regex matches: digit(s) followed immediately by letter(s)
+    let processed = text.replace(/(\d+(?:\/\d+)?(?:\.\d+)?)\s*([a-zA-Z])/g, '$1 $2');
+    
+    // Fix missing spaces between fractions and units (e.g., "1/2cup" -> "1/2 cup")
+    processed = processed.replace(/(\d+\/\d+)\s*([a-zA-Z])/g, '$1 $2');
+    
+    // Fix missing spaces after parenthetical quantities (e.g., "2(5oz)" -> "2 (5oz)")
+    processed = processed.replace(/(\d+)\s*\(/g, '$1 (');
+    
+    // Fix missing spaces before parenthetical info (e.g., "flour(sifted)" -> "flour (sifted)")
+    processed = processed.replace(/([a-zA-Z])\s*\(/g, '$1 (');
+    
+    // Normalize multiple spaces to single space
+    processed = processed.replace(/\s+/g, ' ').trim();
+    
+    // Add debug logging to see the result
+    if (processed !== text) {
+      console.log('🔧 Preprocessed ingredient:', JSON.stringify(processed));
+    }
+    
+    return processed;
   }
 }
 
