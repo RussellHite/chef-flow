@@ -38,7 +38,6 @@ export default function EditRecipeScreen({ route, navigation }) {
     recipe.ingredients ? recipe.ingredients : []
   );
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('flow');
   const [originalStepContent, setOriginalStepContent] = useState(new Map());
   
   // Initialize ingredient tracking for recipe editing
@@ -792,29 +791,8 @@ export default function EditRecipeScreen({ route, navigation }) {
           </View>
         </View>
 
-        <View style={styles.tabContainer}>
-          <View style={styles.tabButtons}>
-            <TouchableOpacity 
-              style={[styles.tabButton, activeTab === 'flow' && styles.activeTabButton]}
-              onPress={() => setActiveTab('flow')}
-            >
-              <Text style={[styles.tabButtonText, activeTab === 'flow' && styles.activeTabButtonText]}>
-                Flow
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.tabButton, activeTab === 'oldguard' && styles.activeTabButton]}
-              onPress={() => setActiveTab('oldguard')}
-            >
-              <Text style={[styles.tabButtonText, activeTab === 'oldguard' && styles.activeTabButtonText]}>
-                Old Guard
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {activeTab === 'flow' ? (
-            <>
-              <View style={styles.ingredientsContainer}>
+        <View style={styles.contentContainer}>
+          <View style={styles.ingredientsContainer}>
                 <Text style={styles.sectionTitle}>Ingredients</Text>
                 <Text style={styles.sectionSubtitle}>
                   Manage your recipe ingredients
@@ -853,43 +831,6 @@ export default function EditRecipeScreen({ route, navigation }) {
                   />
                 ))}
               </View>
-            </>
-          ) : (
-            <View style={styles.oldGuardContainer}>
-              <Text style={styles.sectionTitle}>Original Recipe</Text>
-              <Text style={styles.sectionSubtitle}>
-                Recipe as originally entered - unprocessed format
-              </Text>
-              
-              {originalContent ? (
-                <>
-                  <View style={styles.oldGuardSection}>
-                    <Text style={styles.oldGuardSectionTitle}>Ingredients</Text>
-                    <View style={styles.oldGuardContent}>
-                      <Text style={styles.oldGuardOriginalText}>
-                        {originalContent.ingredients || 'No ingredients provided'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.oldGuardSection}>
-                    <Text style={styles.oldGuardSectionTitle}>Steps</Text>
-                    <View style={styles.oldGuardContent}>
-                      <Text style={styles.oldGuardOriginalText}>
-                        {originalContent.steps || 'No steps provided'}
-                      </Text>
-                    </View>
-                  </View>
-                </>
-              ) : (
-                <View style={styles.oldGuardContent}>
-                  <Text style={styles.oldGuardItem}>
-                    Original content not available for this recipe.
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
         </View>
 
         <View style={styles.buttonContainer}>
@@ -951,33 +892,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 20,
   },
-  tabContainer: {
+  contentContainer: {
     marginBottom: 20,
-  },
-  tabButtons: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 4,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  activeTabButton: {
-    backgroundColor: colors.primary,
-  },
-  tabButtonText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  activeTabButtonText: {
-    color: colors.surface,
   },
   ingredientsContainer: {
     marginBottom: 30,
@@ -1008,42 +924,6 @@ const styles = StyleSheet.create({
   },
   stepsContainer: {
     marginBottom: 20,
-  },
-  oldGuardContainer: {
-    marginBottom: 20,
-  },
-  oldGuardSection: {
-    marginBottom: 24,
-  },
-  oldGuardSectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: 12,
-  },
-  oldGuardContent: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  oldGuardItem: {
-    ...typography.body,
-    color: colors.text,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  oldGuardStep: {
-    ...typography.body,
-    color: colors.text,
-    marginBottom: 12,
-    lineHeight: 22,
-  },
-  oldGuardOriginalText: {
-    ...typography.body,
-    color: colors.text,
-    lineHeight: 20,
-    whiteSpace: 'pre-line',
   },
   buttonContainer: {
     flexDirection: 'row',
