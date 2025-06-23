@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Chef Flow",
+    "slug": "chef-flow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio", "location", "fetch", "remote-notification"]
+      }
+    },
+    "android": {
+      "package": "com.russellhite.chefflow",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
+      "useNextNotificationsApi": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "jsEngine": "hermes",
+    "developmentClient": {
+      "silentLaunch": false
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-build-properties",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff",
+          "sounds": []
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d5aa71cd-234c-41f0-bb7f-c32ee0e3d3fb"
+      }
+    },
+    "owner": "rhitedesign"
+  }
+}
