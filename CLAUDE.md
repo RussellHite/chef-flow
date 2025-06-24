@@ -36,6 +36,32 @@ npm run android
 - Test framework: Not yet configured
 - To run tests: Please specify test command for future reference
 
+## Deployment
+**IMPORTANT**: EAS builds must be executed on the Windows host machine, NOT through Claude Code.
+
+### APK Build Process (Windows Only)
+```bash
+# Build Android APK for testing
+eas build --platform android --profile preview
+
+# Build production APK
+eas build --platform android --profile production
+```
+
+### Why Windows-only:
+- EAS build requires stable internet connection and proper authentication
+- Build process can take 5-10 minutes and may timeout in Claude environment
+- User needs to monitor build progress and download APK manually
+- Authentication tokens and build configurations are user-specific
+
+### Deployment Steps for User:
+1. Run `eas build --platform android --profile preview` in Windows terminal
+2. Monitor build progress via provided URL
+3. Download APK when build completes
+4. Install APK on Android device for testing
+
+**Claude Code should NEVER attempt to run EAS build commands directly.**
+
 ## File Structure
 - `/screens/` - Main application screens
 - `/components/` - Reusable UI components

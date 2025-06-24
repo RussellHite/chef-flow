@@ -39,6 +39,8 @@ export default function EditRecipeScreen({ route, navigation }) {
   );
   const [isSaving, setIsSaving] = useState(false);
   const [originalStepContent, setOriginalStepContent] = useState(new Map());
+  const [newIngredientEditing, setNewIngredientEditing] = useState(false);
+  const [tempNewIngredient, setTempNewIngredient] = useState(null);
   
   // Initialize ingredient tracking for recipe editing
   const tracking = useRecipeCreationTracking();
@@ -344,6 +346,40 @@ export default function EditRecipeScreen({ route, navigation }) {
           const structured = await import('../services/ingredientServiceInstance.js')
             .then(module => module.default.parseIngredientText(newText.trim()));
           
+          // Extract the ingredient name from the edited text
+          // This preserves what the user typed instead of relying on database matches
+          const textParts = newText.trim().split(/\s+/);
+          let userIngredientName = '';
+          
+          // Skip quantity and unit to find the ingredient name
+          let startIndex = 0;
+          // Skip quantity (numbers, fractions, decimals)
+          if (textParts[0] && /^\d/.test(textParts[0])) {
+            startIndex = 1;
+          }
+          // Skip unit if present
+          if (textParts[startIndex] && structured.unit && 
+              (textParts[startIndex].toLowerCase() === structured.unit.name?.toLowerCase() ||
+               textParts[startIndex].toLowerCase() === structured.unit.plural?.toLowerCase())) {
+            startIndex++;
+          }
+          
+          // Extract ingredient name (everything after quantity and unit, before comma)
+          const remainingText = textParts.slice(startIndex).join(' ');
+          const commaIndex = remainingText.indexOf(',');
+          userIngredientName = commaIndex > -1 
+            ? remainingText.substring(0, commaIndex).trim()
+            : remainingText.trim();
+          
+          // Override the parsed ingredient name with what the user typed
+          if (userIngredientName) {
+            structured.ingredient = {
+              id: 'custom',
+              name: userIngredientName,
+              category: 'custom'
+            };
+          }
+          
           updatedIngredient = {
             ...ingredient,
             originalText: newText.trim(),
@@ -376,6 +412,40 @@ export default function EditRecipeScreen({ route, navigation }) {
           // Re-parse the ingredient text
           const structured = await import('../services/ingredientServiceInstance.js')
             .then(module => module.default.parseIngredientText(newText.trim()));
+          
+          // Extract the ingredient name from the edited text
+          // This preserves what the user typed instead of relying on database matches
+          const textParts = newText.trim().split(/\s+/);
+          let userIngredientName = '';
+          
+          // Skip quantity and unit to find the ingredient name
+          let startIndex = 0;
+          // Skip quantity (numbers, fractions, decimals)
+          if (textParts[0] && /^\d/.test(textParts[0])) {
+            startIndex = 1;
+          }
+          // Skip unit if present
+          if (textParts[startIndex] && structured.unit && 
+              (textParts[startIndex].toLowerCase() === structured.unit.name?.toLowerCase() ||
+               textParts[startIndex].toLowerCase() === structured.unit.plural?.toLowerCase())) {
+            startIndex++;
+          }
+          
+          // Extract ingredient name (everything after quantity and unit, before comma)
+          const remainingText = textParts.slice(startIndex).join(' ');
+          const commaIndex = remainingText.indexOf(',');
+          userIngredientName = commaIndex > -1 
+            ? remainingText.substring(0, commaIndex).trim()
+            : remainingText.trim();
+          
+          // Override the parsed ingredient name with what the user typed
+          if (userIngredientName) {
+            structured.ingredient = {
+              id: 'custom',
+              name: userIngredientName,
+              category: 'custom'
+            };
+          }
           
           updatedIngredient = {
             ...ingredient,
@@ -926,6 +996,96 @@ export default function EditRecipeScreen({ route, navigation }) {
     );
   };
 
+  const handleAddIngredient = () => {
+    // Create a temporary new ingredient with default values
+    const newIngredient = {
+      id: `ingredient_new_${Date.now()}`,
+      originalText: '',
+      displayText: '',
+      structured: {
+        quantity: 1,
+        unit: null,
+        ingredient: { id: 'custom', name: '', category: 'custom' },
+        preparation: null,
+        isStructured: true
+      },
+      isNew: true
+    };
+
+    setTempNewIngredient(newIngredient);
+    setNewIngredientEditing(true);
+  };
+
+  const handleNewIngredientSave = async (ingredient, newText) => {
+    // Process the new ingredient just like editing an existing one
+    try {
+      const structured = await import('../services/ingredientServiceInstance.js')
+        .then(module => module.default.parseIngredientText(newText.trim()));
+      
+      // Extract the ingredient name from the edited text to preserve user input
+      const textParts = newText.trim().split(/\s+/);
+      let userIngredientName = '';
+      
+      let startIndex = 0;
+      if (textParts[0] && /^\d/.test(textParts[0])) {
+        startIndex = 1;
+      }
+      if (textParts[startIndex] && structured.unit && 
+          (textParts[startIndex].toLowerCase() === structured.unit.name?.toLowerCase() ||
+           textParts[startIndex].toLowerCase() === structured.unit.plural?.toLowerCase())) {
+        startIndex++;
+      }
+      
+      const remainingText = textParts.slice(startIndex).join(' ');
+      const commaIndex = remainingText.indexOf(',');
+      userIngredientName = commaIndex > -1 
+        ? remainingText.substring(0, commaIndex).trim()
+        : remainingText.trim();
+      
+      if (userIngredientName) {
+        structured.ingredient = {
+          id: 'custom',
+          name: userIngredientName,
+          category: 'custom'
+        };
+      }
+      
+      const finalIngredient = {
+        id: `ingredient_${Date.now()}`,
+        originalText: newText.trim(),
+        structured: structured,
+        displayText: structured.isStructured 
+          ? await import('../services/ingredientServiceInstance.js')
+              .then(module => module.default.formatIngredientForDisplay(structured))
+          : newText.trim()
+      };
+
+      // Add to ingredients list
+      setIngredients(prev => [...prev, finalIngredient]);
+
+      // Track ingredient addition
+      if (tracking.isInitialized) {
+        await tracking.trackIngredientAdded(finalIngredient, {
+          recipeId: editedRecipe.id,
+          recipeName: editedRecipe.title,
+          method: 'manual_add'
+        });
+      }
+    } catch (error) {
+      console.warn('Error parsing new ingredient:', error);
+    }
+
+    // Clear the temporary state
+    setNewIngredientEditing(false);
+    setTempNewIngredient(null);
+  };
+
+  const handleNewIngredientCancel = () => {
+    // User cancelled, don't add anything
+    setNewIngredientEditing(false);
+    setTempNewIngredient(null);
+  };
+
   const removeIngredientFromSteps = (deletedIngredient) => {
     const ingredientName = getIngredientName(deletedIngredient);
     
@@ -1077,6 +1237,31 @@ export default function EditRecipeScreen({ route, navigation }) {
                     showActions={true}
                   />
                 ))}
+                
+                {newIngredientEditing && tempNewIngredient && (
+                  <StructuredIngredient
+                    key={tempNewIngredient.id}
+                    ingredient={tempNewIngredient}
+                    onEdit={handleNewIngredientSave}
+                    onDelete={(ingredient) => {
+                      // For new ingredients, just cancel without adding
+                      handleNewIngredientCancel();
+                    }}
+                    onCreateStep={() => {}}
+                    showActions={true}
+                    forceEditMode={true}
+                  />
+                )}
+                
+                {!newIngredientEditing && (
+                  <TouchableOpacity
+                    style={styles.addIngredientButton}
+                    onPress={handleAddIngredient}
+                  >
+                    <Ionicons name="add-circle" size={20} color={colors.primary} />
+                    <Text style={styles.addIngredientText}>Add Ingredient</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               
               <View style={styles.stepsContainer}>
@@ -1206,5 +1391,23 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 8,
+  },
+  addIngredientButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  addIngredientText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '500',
   },
 });

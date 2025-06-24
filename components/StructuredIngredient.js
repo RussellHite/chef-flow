@@ -17,6 +17,7 @@ import { commonStyles } from '../styles/common';
  */
 // Common measurement units for dropdown
 const MEASUREMENT_UNITS = [
+  { value: 'n/a', label: 'n/a', plural: 'n/a' },
   { value: 'cup', label: 'cup', plural: 'cups' },
   { value: 'tbsp', label: 'tbsp', plural: 'tbsp' },
   { value: 'tsp', label: 'tsp', plural: 'tsp' },
@@ -38,36 +39,65 @@ export default function StructuredIngredient({
   onDelete, 
   onCreateStep,
   showActions = true,
-  compact = false 
+  compact = false,
+  forceEditMode = false
 }) {
   const { structured, displayText, originalText } = ingredient;
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(forceEditMode);
   const [editQuantity, setEditQuantity] = useState('');
   const [editUnit, setEditUnit] = useState('');
+  const [editIngredient, setEditIngredient] = useState('');
   const [editPreparation, setEditPreparation] = useState('');
   const [showManualParsing, setShowManualParsing] = useState(false);
   const [manualParts, setManualParts] = useState([]);
+
+  // Initialize edit fields if starting in edit mode
+  React.useEffect(() => {
+    if (forceEditMode && !editQuantity) {
+      if (structured && structured.isStructured) {
+        const quantity = structured.quantity;
+        setEditQuantity(typeof quantity === 'number' ? quantity.toString() : (quantity || ''));
+        setEditUnit(structured.unit?.value || 'n/a');
+        setEditIngredient(structured.ingredient?.name || displayText || originalText || '');
+        setEditPreparation(structured.preparation?.name || '');
+      } else {
+        setEditQuantity('1');
+        setEditUnit('n/a');
+        setEditIngredient(displayText || originalText || '');
+        setEditPreparation('');
+      }
+    }
+  }, [forceEditMode, structured, displayText, originalText, editQuantity]);
 
   const handleEditStart = () => {
     if (structured && structured.isStructured) {
       const quantity = structured.quantity;
       setEditQuantity(typeof quantity === 'number' ? quantity.toString() : (quantity || ''));
-      setEditUnit(structured.unit?.value || 'cup');
+      setEditUnit(structured.unit?.value || 'n/a');
+      setEditIngredient(structured.ingredient?.name || displayText || originalText || '');
       setEditPreparation(structured.preparation?.name || '');
     } else {
       // For unstructured ingredients, try to parse basic info
       setEditQuantity('1');
-      setEditUnit('cup');
+      setEditUnit('n/a');
+      setEditIngredient(displayText || originalText || '');
       setEditPreparation('');
     }
     setIsEditing(true);
   };
 
   const handleEditCancel = () => {
-    setIsEditing(false);
-    setEditQuantity('');
-    setEditUnit('');
-    setEditPreparation('');
+    // If this was forced into edit mode (new ingredient), call onDelete
+    if (forceEditMode && onDelete) {
+      onDelete(ingredient);
+    } else {
+      // Otherwise just close edit mode
+      setIsEditing(false);
+      setEditQuantity('');
+      setEditUnit('');
+      setEditIngredient('');
+      setEditPreparation('');
+    }
   };
 
   const handleEditSave = () => {
@@ -76,7 +106,7 @@ export default function StructuredIngredient({
     
     // Get the unit data for proper label/plural handling
     const unitData = MEASUREMENT_UNITS.find(u => u.value === editUnit);
-    const unitLabel = parseFloat(editQuantity) === 1 ? unitData?.label : unitData?.plural;
+    const unitLabel = editUnit === 'n/a' ? '' : (parseFloat(editQuantity) === 1 ? unitData?.label : unitData?.plural);
     
     // Strategy: Try to preserve as much of the original text structure as possible
     // Only replace the parts that were actually edited
@@ -104,14 +134,24 @@ export default function StructuredIngredient({
       }
       
       // Build new text with edited quantity and unit
-      newText = `${editQuantity} ${unitLabel}`;
+      if (unitLabel) {
+        newText = `${editQuantity} ${unitLabel}`;
+      } else {
+        // No unit (n/a selected)
+        newText = editQuantity;
+      }
       
-      // Add the remaining ingredient description
-      if (remainingText.trim()) {
+      // Add the edited ingredient name
+      if (editIngredient.trim()) {
+        newText += ` ${editIngredient.trim()}`;
+      } else if (remainingText.trim()) {
         newText += ` ${remainingText.trim()}`;
       } else if (structured?.ingredient?.name) {
         // Fallback to structured ingredient name
         newText += ` ${structured.ingredient.name}`;
+      } else if (forceEditMode) {
+        // For new ingredients with no name entered, use a default
+        newText += ' ingredient';
       }
       
       // Handle preparation if it was edited
@@ -460,8 +500,6 @@ export default function StructuredIngredient({
   };
 
   const renderEditMode = () => {
-    const baseIngredientName = structured?.ingredient?.name || displayText || originalText;
-    
     return (
       <View style={styles.editContainer}>
         {/* Quantity controls row */}
@@ -503,9 +541,16 @@ export default function StructuredIngredient({
               ))}
             </Picker>
           </View>
-          
-          <Text style={styles.ingredientNameEdit}>{baseIngredientName}</Text>
         </View>
+        
+        {/* Ingredient name on its own line */}
+        <TextInput
+          style={styles.ingredientNameInput}
+          value={editIngredient}
+          onChangeText={setEditIngredient}
+          placeholder="ingredient name..."
+          placeholderTextColor={colors.textSecondary}
+        />
         
         {/* Preparation text field */}
         <TextInput
@@ -870,17 +915,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 4,
-    minWidth: Platform.OS === 'android' ? 100 : 80,
-    height: Platform.OS === 'android' ? 50 : 40,
+    width: 180,
+    height: Platform.OS === 'android' ? 56 : 40,
     justifyContent: 'center',
-    overflow: Platform.OS === 'android' ? 'visible' : 'hidden',
   },
 
   picker: {
-    height: Platform.OS === 'android' ? 50 : 40,
+    height: Platform.OS === 'android' ? 56 : 40,
     color: colors.text,
-    marginTop: Platform.OS === 'android' ? -8 : 0,
-    marginBottom: Platform.OS === 'android' ? -8 : 0,
+    marginTop: Platform.OS === 'android' ? 0 : 0,
+    marginBottom: Platform.OS === 'android' ? 0 : 0,
+    paddingVertical: Platform.OS === 'android' ? 4 : 0,
+    paddingHorizontal: Platform.OS === 'android' ? 8 : 0,
   },
 
   ingredientNameEdit: {
@@ -888,6 +934,23 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '500',
     flex: 1,
+  },
+
+  ingredientRowEdit: {
+    marginBottom: 12,
+    paddingVertical: 8,
+  },
+
+  ingredientNameInput: {
+    ...typography.body,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+    color: colors.text,
   },
 
   preparationInput: {

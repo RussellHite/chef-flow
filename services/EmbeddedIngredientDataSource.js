@@ -596,18 +596,43 @@ class EmbeddedIngredientDataSource {
     // Add debug logging to see what we're working with
     console.log('🔍 Raw ingredient input:', JSON.stringify(text));
     
-    // Fix missing spaces between numbers and letters (e.g., "1cup" -> "1 cup")
-    // This regex matches: digit(s) followed immediately by letter(s)
-    let processed = text.replace(/(\d+(?:\/\d+)?(?:\.\d+)?)\s*([a-zA-Z])/g, '$1 $2');
+    let processed = text;
     
-    // Fix missing spaces between fractions and units (e.g., "1/2cup" -> "1/2 cup")
-    processed = processed.replace(/(\d+\/\d+)\s*([a-zA-Z])/g, '$1 $2');
+    // Phase 1: Handle mixed fractions FIRST (e.g., "21/2cups" -> "2 1/2 cups")
+    // This must come before other number processing
+    processed = processed.replace(/(\d+)(1\/\d+)/g, '$1 $2');
     
+    // Phase 2: Handle quantities and parenthetical info
     // Fix missing spaces after parenthetical quantities (e.g., "2(5oz)" -> "2 (5oz)")
     processed = processed.replace(/(\d+)\s*\(/g, '$1 (');
     
     // Fix missing spaces before parenthetical info (e.g., "flour(sifted)" -> "flour (sifted)")
     processed = processed.replace(/([a-zA-Z])\s*\(/g, '$1 (');
+    
+    // Phase 3: Create comprehensive pattern matching for quantity+unit+ingredient
+    // Create comprehensive unit list - MUST be ordered from longest to shortest
+    const units = [
+      // Long forms first to avoid partial matches
+      'tablespoons', 'tablespoon', 'teaspoons', 'teaspoon', 'ounces', 'ounce', 'pounds', 'pound',
+      'containers', 'container', 'packages', 'package', 'gallons', 'gallon', 'quarts', 'quart',
+      'liters', 'liter', 'bottles', 'bottle', 'pieces', 'piece', 'cloves', 'clove', 'sprigs', 'sprig',
+      'pinches', 'pinch', 'dashes', 'dash', 'slices', 'slice', 'grams', 'gram',
+      // Short forms - plural MUST come before singular
+      'cups', 'cup', 'tbsp', 'tsp', 'lbs', 'lb', 'oz', 'kg', 'ml', 'cans', 'can', 'pints', 'pint',
+      'boxes', 'box', 'jars', 'jar', 'whole', 'small', 'medium', 'large'
+    ];
+    
+    // Phase 4: Apply quantity+unit separation with improved logic
+    // Process each unit, looking for direct attachment to quantities
+    units.forEach(unit => {
+      // Create pattern that only matches when there's NO space between quantity and unit
+      const pattern = new RegExp(`(\\d+(?:\\.\\d+)?(?:\\s+\\d+/\\d+)?(?:/\\d+)?)${unit}\\b`, 'gi');
+      processed = processed.replace(pattern, `$1 ${unit}`);
+    });
+    
+    // Phase 5: Handle remaining edge cases
+    // Fix missing spaces after commas
+    processed = processed.replace(/,([a-zA-Z])/g, ', $1');
     
     // Normalize multiple spaces to single space
     processed = processed.replace(/\s+/g, ' ').trim();
