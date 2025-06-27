@@ -10,6 +10,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import ingredientService from '../services/ingredientServiceInstance';
+import VectorMigration from '../services/VectorMigration';
 
 export default function VectorDemo() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,12 +19,26 @@ export default function VectorDemo() {
   const [performance, setPerformance] = useState(null);
   const [vectorEnabled, setVectorEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState(null);
+  const [isMigrationNeeded, setIsMigrationNeeded] = useState(false);
 
   useEffect(() => {
     // Check if vector features are enabled
     const analytics = ingredientService.getPerformanceAnalytics();
     setVectorEnabled(analytics.vectorEnabled);
+    
+    // Check if migration is needed
+    checkMigrationStatus();
   }, []);
+
+  const checkMigrationStatus = async () => {
+    try {
+      const needed = await VectorMigration.isMigrationNeeded();
+      setIsMigrationNeeded(needed);
+    } catch (error) {
+      console.error('Failed to check migration status:', error);
+    }
+  };
 
   const handleSimilaritySearch = async () => {
     if (!searchQuery.trim()) return;
@@ -73,9 +88,46 @@ export default function VectorDemo() {
     setVectorEnabled(newState);
   };
 
-  const getPerformanceAnalytics = () => {
+  const getPerformanceAnalytics = async () => {
     const analytics = ingredientService.getPerformanceAnalytics();
-    setPerformance(analytics);
+    
+    // Also get vector database stats if available
+    try {
+      const vectorStats = await ingredientService.vectorService?.getDatabaseStats();
+      setPerformance({
+        ...analytics,
+        vectorDatabase: vectorStats
+      });
+    } catch (error) {
+      console.error('Failed to get vector database stats:', error);
+      setPerformance(analytics);
+    }
+  };
+
+  const startMigration = async () => {
+    try {
+      setIsLoading(true);
+      console.log('Starting vector database migration...');
+      
+      const success = await VectorMigration.startMigration();
+      if (success) {
+        setIsMigrationNeeded(false);
+        await getPerformanceAnalytics();
+        console.log('Migration completed successfully');
+      } else {
+        console.error('Migration failed');
+      }
+    } catch (error) {
+      console.error('Migration error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getMigrationProgress = () => {
+    const progress = VectorMigration.getProgress();
+    setMigrationProgress(progress);
+    return progress;
   };
 
   const renderIngredientResult = (ingredient, index) => {
@@ -119,6 +171,22 @@ export default function VectorDemo() {
         placeholderTextColor={colors.textSecondary}
       />
 
+      {/* Migration Alert */}
+      {isMigrationNeeded && (
+        <View style={styles.migrationAlert}>
+          <Text style={styles.migrationAlertText}>
+            Vector database needs initialization. Run migration to enable full vector search.
+          </Text>
+          <TouchableOpacity 
+            style={[styles.button, styles.migrationButton]} 
+            onPress={startMigration}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>Start Migration</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity 
@@ -143,6 +211,13 @@ export default function VectorDemo() {
         >
           <Text style={[styles.buttonText, styles.secondaryButtonText]}>Analytics</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.button, styles.secondaryButton]} 
+          onPress={getMigrationProgress}
+        >
+          <Text style={[styles.buttonText, styles.secondaryButtonText]}>Migration Status</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Performance Metrics */}
@@ -155,6 +230,26 @@ export default function VectorDemo() {
           {performance.smartSearch && (
             <Text style={styles.metric}>Smart Search: {performance.smartSearch}ms</Text>
           )}
+          
+          {/* Vector Database Stats */}
+          {performance.vectorDatabase && !performance.vectorDatabase.error && (
+            <View style={styles.analyticsContainer}>
+              <Text style={styles.analyticsTitle}>Vector Database:</Text>
+              <Text style={styles.analyticsItem}>
+                Total Embeddings: {performance.vectorDatabase.totalEmbeddings}
+              </Text>
+              <Text style={styles.analyticsItem}>
+                Avg Search Time: {performance.vectorDatabase.avgSearchTime?.toFixed(1) || 0}ms
+              </Text>
+              <Text style={styles.analyticsItem}>
+                Searches (24h): {performance.vectorDatabase.totalSearches24h}
+              </Text>
+              <Text style={styles.analyticsItem}>
+                Model: {performance.vectorDatabase.modelVersion}
+              </Text>
+            </View>
+          )}
+          
           {performance.operations && Object.keys(performance.operations).length > 0 && (
             <View style={styles.analyticsContainer}>
               <Text style={styles.analyticsTitle}>Operation Analytics:</Text>
@@ -164,6 +259,23 @@ export default function VectorDemo() {
                 </Text>
               ))}
             </View>
+          )}
+        </View>
+      )}
+
+      {/* Migration Progress */}
+      {migrationProgress && migrationProgress.isActive && (
+        <View style={styles.migrationContainer}>
+          <Text style={styles.sectionTitle}>Migration Progress</Text>
+          <Text style={styles.metric}>
+            Progress: {migrationProgress.processed}/{migrationProgress.total} 
+            ({migrationProgress.percentComplete.toFixed(1)}%)
+          </Text>
+          <Text style={styles.metric}>Failed: {migrationProgress.failed}</Text>
+          {migrationProgress.estimatedTimeRemaining && (
+            <Text style={styles.metric}>
+              Est. Time Remaining: {Math.ceil(migrationProgress.estimatedTimeRemaining / 1000)}s
+            </Text>
           )}
         </View>
       )}
@@ -374,5 +486,36 @@ const styles = StyleSheet.create({
   loadingText: {
     ...typography.body,
     color: colors.textSecondary,
+  },
+  
+  // Migration styles
+  migrationAlert: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+  },
+  
+  migrationAlertText: {
+    ...typography.body,
+    color: colors.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  
+  migrationButton: {
+    backgroundColor: colors.primary,
+    alignSelf: 'center',
+  },
+  
+  migrationContainer: {
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
 });
