@@ -21,6 +21,7 @@ export default function IngredientListScreen({ navigation }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -69,40 +70,33 @@ export default function IngredientListScreen({ navigation }) {
     setFilteredIngredients(filtered);
   };
 
-  const renderTableHeader = () => (
-    <View style={styles.tableHeader}>
-      <Text style={[styles.headerCell, styles.nameColumn]}>Name</Text>
-      <Text style={[styles.headerCell, styles.categoryColumn]}>Category</Text>
-      <Text style={[styles.headerCell, styles.unitsColumn]}>Common Units</Text>
-      <Text style={[styles.headerCell, styles.prepColumn]}>Preparations</Text>
-    </View>
-  );
-
-  const renderIngredientRow = ({ item: ingredient, index }) => (
-    <View style={[styles.tableRow, index % 2 === 0 ? styles.evenRow : styles.oddRow]}>
-      <View style={[styles.cell, styles.nameColumn]}>
-        <Text style={styles.cellText}>{ingredient.name}</Text>
-        <Text style={styles.cellSubtext}>{ingredient.plural}</Text>
+  const renderIngredientCard = ({ item: ingredient }) => (
+    <View style={styles.ingredientCard}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.ingredientName}>{ingredient.name}</Text>
+        <View style={styles.categoryBadge}>
+          <Text style={styles.categoryBadgeText}>
+            {categories.find(cat => cat.id === ingredient.category)?.name || ingredient.category}
+          </Text>
+        </View>
       </View>
       
-      <View style={[styles.cell, styles.categoryColumn]}>
-        <Text style={styles.cellText}>
-          {categories.find(cat => cat.id === ingredient.category)?.name || ingredient.category}
-        </Text>
-      </View>
+      <Text style={styles.pluralText}>{ingredient.plural}</Text>
       
-      <View style={[styles.cell, styles.unitsColumn]}>
-        <Text style={styles.cellText}>
-          {ingredient.commonUnits.slice(0, 3).join(', ')}
-          {ingredient.commonUnits.length > 3 ? '...' : ''}
-        </Text>
-      </View>
-      
-      <View style={[styles.cell, styles.prepColumn]}>
-        <Text style={styles.cellText}>
-          {ingredient.commonPreparations.slice(0, 2).join(', ')}
-          {ingredient.commonPreparations.length > 2 ? '...' : ''}
-        </Text>
+      <View style={styles.cardDetails}>
+        <View style={styles.detailSection}>
+          <Text style={styles.detailLabel}>Common Units</Text>
+          <Text style={styles.detailValue}>
+            {ingredient.commonUnits.join(', ')}
+          </Text>
+        </View>
+        
+        <View style={styles.detailSection}>
+          <Text style={styles.detailLabel}>Preparations</Text>
+          <Text style={styles.detailValue}>
+            {ingredient.commonPreparations.join(', ')}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -133,6 +127,46 @@ export default function IngredientListScreen({ navigation }) {
     </View>
   );
 
+  const renderFiltersAccordion = () => (
+    <View style={styles.filtersAccordion}>
+      <TouchableOpacity 
+        style={styles.accordionHeader}
+        onPress={() => setFiltersExpanded(!filtersExpanded)}
+      >
+        <Text style={styles.accordionTitle}>Filters</Text>
+        <Ionicons 
+          name={filtersExpanded ? 'chevron-up' : 'chevron-down'} 
+          size={20} 
+          color={colors.textSecondary} 
+        />
+      </TouchableOpacity>
+      
+      {filtersExpanded && (
+        <View style={styles.accordionContent}>
+          {/* Search Bar */}
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search ingredients..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor={colors.textSecondary}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Category Filter */}
+          {renderCategoryFilter()}
+        </View>
+      )}
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={commonStyles.container}>
@@ -154,40 +188,17 @@ export default function IngredientListScreen({ navigation }) {
           </Text>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color={colors.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search ingredients..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={colors.textSecondary}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+        {/* Filters Accordion */}
+        {renderFiltersAccordion()}
 
-        {/* Category Filter */}
-        {renderCategoryFilter()}
-
-        {/* Data Table */}
-        <View style={styles.tableContainer}>
-          {renderTableHeader()}
-          
-          <FlatList
-            data={filteredIngredients}
-            renderItem={renderIngredientRow}
-            keyExtractor={item => item.id}
-            style={styles.tableContent}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
+        {/* Ingredient Cards */}
+        <FlatList
+          data={filteredIngredients}
+          renderItem={renderIngredientCard}
+          keyExtractor={item => item.id}
+          style={styles.ingredientList}
+          showsVerticalScrollIndicator={false}
+        />
       </View>
     </View>
   );
@@ -212,29 +223,54 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   
-  // Search
-  searchContainer: {
-    marginBottom: 16,
+  // Filters Accordion
+  filtersAccordion: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: 'hidden',
   },
+  accordionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  accordionTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  accordionContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  
+  // Search
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
+    backgroundColor: colors.background,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 6,
+    marginBottom: 8,
   },
   searchInput: {
     flex: 1,
     ...typography.body,
     color: colors.text,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   
   // Category Filter
   categoryFilter: {
-    marginBottom: 16,
+    marginBottom: 0,
   },
   categoryFilterContent: {
     flexDirection: 'row',
@@ -242,10 +278,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryChip: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    backgroundColor: colors.background,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -262,69 +298,66 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
   
-  // Table
-  tableContainer: {
+  // Ingredient Cards
+  ingredientList: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    overflow: 'hidden',
   },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: colors.background,
+  ingredientCard: {
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerCell: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  tableContent: {
-    flex: 1,
-  },
-  tableRow: {
+  cardHeader: {
     flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  evenRow: {
-    backgroundColor: colors.surface,
-  },
-  oddRow: {
-    backgroundColor: colors.background,
-  },
-  cell: {
-    justifyContent: 'center',
-  },
-  cellText: {
+  ingredientName: {
     ...typography.body,
     color: colors.text,
-    fontSize: 14,
+    fontWeight: 'bold',
+    fontSize: 16,
+    flex: 1,
+    marginRight: 12,
   },
-  cellSubtext: {
+  categoryBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  categoryBadgeText: {
+    ...typography.caption,
+    color: colors.surface,
+    fontWeight: '600',
+    fontSize: 11,
+  },
+  pluralText: {
     ...typography.caption,
     color: colors.textSecondary,
     fontSize: 12,
-    marginTop: 2,
+    marginBottom: 8,
   },
-  
-  // Column widths
-  nameColumn: {
-    flex: 2,
+  cardDetails: {
+    gap: 8,
   },
-  categoryColumn: {
-    flex: 1.5,
+  detailSection: {
+    gap: 2,
   },
-  unitsColumn: {
-    flex: 2,
+  detailLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  prepColumn: {
-    flex: 2,
+  detailValue: {
+    ...typography.body,
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 18,
   },
 });

@@ -7,8 +7,13 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  Share,
+  Platform,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
@@ -17,6 +22,8 @@ import TrainingDataService from '../services/TrainingDataService';
 export default function ParsingTrainingScreen({ navigation }) {
   const [trainingData, setTrainingData] = useState([]);
   const [stats, setStats] = useState({ total: 0, recent: 0 });
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
 
   useEffect(() => {
     loadTrainingData();
@@ -72,17 +79,96 @@ export default function ParsingTrainingScreen({ navigation }) {
     );
   };
 
-  const exportTrainingData = () => {
+  const importTrainingData = async () => {
+    try {
+      // Try to get data from clipboard first
+      const clipboardContent = await Clipboard.getStringAsync();
+      if (clipboardContent) {
+        setImportText(clipboardContent);
+      }
+      setShowImport(true);
+    } catch (error) {
+      console.error('Error getting clipboard:', error);
+      setShowImport(true);
+    }
+  };
+
+  const processImportData = async () => {
+    try {
+      const importData = JSON.parse(importText);
+      
+      // Validate the data structure
+      if (!importData.data || !Array.isArray(importData.data)) {
+        throw new Error('Invalid data format');
+      }
+
+      // Import each training example
+      let imported = 0;
+      for (const item of importData.data) {
+        if (item.originalText && item.manualParsing) {
+          await TrainingDataService.saveTrainingData(item.originalText, item.manualParsing);
+          imported++;
+        }
+      }
+
+      Alert.alert('Success', `Imported ${imported} training examples!`);
+      setShowImport(false);
+      setImportText('');
+      loadTrainingData();
+    } catch (error) {
+      Alert.alert('Import Error', 'Invalid JSON format or data structure. Please check your data and try again.');
+      console.error('Import error:', error);
+    }
+  };
+
+  const exportTrainingData = async () => {
     const exportData = TrainingDataService.exportData();
     const dataStr = JSON.stringify(exportData, null, 2);
-    console.log('Training Data Export:', dataStr);
     
-    // In a real app, you might want to share this data or send it to a server
-    Alert.alert(
-      'Export Complete', 
-      `Exported ${exportData.data.length} training examples to console. In a production app, this would be sent to your training service.`,
-      [{ text: 'OK' }]
-    );
+    try {
+      // Try to share the data first
+      const shareResult = await Share.share({
+        message: dataStr,
+        title: 'Chef Flow Training Data Export',
+      });
+      
+      if (shareResult.action === Share.sharedAction) {
+        console.log('Training data shared successfully');
+      } else if (shareResult.action === Share.dismissedAction) {
+        // User dismissed the share dialog, offer to copy to clipboard
+        Alert.alert(
+          'Export Cancelled',
+          'Would you like to copy the data to clipboard instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Copy to Clipboard',
+              onPress: async () => {
+                await Clipboard.setStringAsync(dataStr);
+                Alert.alert('Success', 'Training data copied to clipboard!');
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error sharing data:', error);
+      // Fallback to clipboard
+      Alert.alert(
+        'Share Failed',
+        'Unable to share data. Would you like to copy it to clipboard instead?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Copy to Clipboard',
+            onPress: async () => {
+              await Clipboard.setStringAsync(dataStr);
+              Alert.alert('Success', 'Training data copied to clipboard!');
+            }
+          }
+        ]
+      );
+    }
   };
 
   const renderTrainingItem = ({ item }) => {
@@ -103,26 +189,33 @@ export default function ParsingTrainingScreen({ navigation }) {
         </View>
         
         <View style={styles.parsingResult}>
-          <View style={styles.parsedPart}>
-            <Text style={styles.partLabel}>Quantity:</Text>
-            <Text style={styles.partValue}>{manualParsing.quantity || 'none'}</Text>
+          <View style={styles.parsingGrid}>
+            <View style={styles.parsedField}>
+              <Text style={styles.fieldLabel}>Quantity</Text>
+              <Text style={styles.fieldValue}>{manualParsing.quantity || 'none'}</Text>
+            </View>
+            <View style={styles.parsedField}>
+              <Text style={styles.fieldLabel}>Unit</Text>
+              <Text style={styles.fieldValue}>{manualParsing.unit || 'none'}</Text>
+            </View>
           </View>
-          <View style={styles.parsedPart}>
-            <Text style={styles.partLabel}>Unit:</Text>
-            <Text style={styles.partValue}>{manualParsing.unit || 'none'}</Text>
+          
+          <View style={styles.parsedField}>
+            <Text style={styles.fieldLabel}>Ingredient</Text>
+            <Text style={styles.fieldValue}>{manualParsing.ingredient || 'none'}</Text>
           </View>
-          <View style={styles.parsedPart}>
-            <Text style={styles.partLabel}>Ingredient:</Text>
-            <Text style={styles.partValue}>{manualParsing.ingredient || 'none'}</Text>
-          </View>
-          <View style={styles.parsedPart}>
-            <Text style={styles.partLabel}>Description:</Text>
-            <Text style={styles.partValue}>{manualParsing.description || 'none'}</Text>
-          </View>
+          
+          {manualParsing.description && (
+            <View style={styles.parsedField}>
+              <Text style={styles.fieldLabel}>Description</Text>
+              <Text style={styles.fieldValue}>{manualParsing.description}</Text>
+            </View>
+          )}
+          
           {manualParsing.action && (
-            <View style={styles.parsedPart}>
-              <Text style={styles.partLabel}>Action:</Text>
-              <Text style={[styles.partValue, styles.actionValue]}>{manualParsing.action}</Text>
+            <View style={styles.parsedField}>
+              <Text style={styles.fieldLabel}>Action</Text>
+              <Text style={[styles.fieldValue, styles.actionValue]}>{manualParsing.action}</Text>
             </View>
           )}
         </View>
@@ -156,17 +249,35 @@ export default function ParsingTrainingScreen({ navigation }) {
 
         {/* Actions */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity style={styles.actionButton} onPress={exportTrainingData}>
+          <TouchableOpacity style={styles.actionButton} onPress={importTrainingData}>
             <Ionicons name="download" size={20} color={colors.primary} />
-            <Text style={styles.actionButtonText}>Export Data</Text>
+            <Text style={styles.actionButtonText}>Import</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionButton} onPress={exportTrainingData}>
+            <Ionicons name="share" size={20} color={colors.primary} />
+            <Text style={styles.actionButtonText}>Share</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            onPress={async () => {
+              const exportData = TrainingDataService.exportData();
+              const dataStr = JSON.stringify(exportData, null, 2);
+              await Clipboard.setStringAsync(dataStr);
+              Alert.alert('Success', `Copied ${exportData.data.length} training examples to clipboard!`);
+            }}
+          >
+            <Ionicons name="copy" size={20} color={colors.primary} />
+            <Text style={styles.actionButtonText}>Copy</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={[styles.actionButton, styles.dangerButton]} 
             onPress={clearAllTrainingData}
           >
-            <Ionicons name="trash" size={20} color={colors.error || colors.textSecondary} />
-            <Text style={[styles.actionButtonText, styles.dangerButtonText]}>Clear All</Text>
+            <Ionicons name="trash" size={16} color={colors.error || colors.textSecondary} />
+            <Text style={[styles.actionButtonText, styles.dangerButtonText]}>Clear</Text>
           </TouchableOpacity>
         </View>
 
@@ -193,6 +304,58 @@ export default function ParsingTrainingScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
+
+      {/* Import Modal */}
+      <Modal
+        visible={showImport}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowImport(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Import Training Data</Text>
+              <TouchableOpacity onPress={() => setShowImport(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalSubtitle}>
+              Paste your training data JSON below:
+            </Text>
+            
+            <TextInput
+              style={styles.importTextInput}
+              value={importText}
+              onChangeText={setImportText}
+              placeholder="Paste JSON data here..."
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              textAlignVertical="top"
+            />
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonSecondary]} 
+                onPress={() => {
+                  setShowImport(false);
+                  setImportText('');
+                }}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonPrimary]} 
+                onPress={processImportData}
+              >
+                <Text style={styles.modalButtonTextPrimary}>Import</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -250,12 +413,14 @@ const styles = StyleSheet.create({
   // Actions
   actionsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginBottom: 24,
   },
 
   actionButton: {
-    flex: 1,
+    flexBasis: '48%',
+    flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -265,6 +430,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    minWidth: 100,
   },
 
   dangerButton: {
@@ -323,27 +489,35 @@ const styles = StyleSheet.create({
   },
 
   parsingResult: {
-    gap: 8,
     marginBottom: 12,
   },
 
-  parsedPart: {
+  parsingGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
   },
 
-  partLabel: {
+  parsedField: {
+    flex: 1,
+    marginBottom: 12,
+  },
+
+  fieldLabel: {
     ...typography.caption,
     color: colors.textSecondary,
     fontWeight: '600',
-    width: 80,
+    marginBottom: 0,
+    textTransform: 'uppercase',
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
 
-  partValue: {
+  fieldValue: {
     ...typography.body,
     color: colors.text,
-    flex: 1,
-    fontStyle: 'italic',
+    fontSize: 15,
+    marginTop: 0,
   },
 
   actionValue: {
@@ -375,5 +549,99 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+
+  modalContent: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    ...commonStyles.shadow,
+  },
+
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+
+  modalTitle: {
+    ...typography.h2,
+    color: colors.text,
+  },
+
+  modalSubtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+
+  importTextInput: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    minHeight: 200,
+    maxHeight: 300,
+    ...typography.body,
+    color: colors.text,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+  },
+
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+
+  modalButtonPrimary: {
+    backgroundColor: colors.primary,
+  },
+
+  modalButtonSecondary: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  modalButtonTextPrimary: {
+    ...typography.body,
+    color: colors.surface,
+    fontWeight: '600',
+  },
+
+  modalButtonTextSecondary: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '500',
   },
 });

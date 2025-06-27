@@ -39,6 +39,8 @@ export const UNITS = {
   piece: { id: 'piece', nameKey: 'unit.piece', name: 'piece', plural: 'pieces', type: 'count' },
   whole: { id: 'whole', nameKey: 'unit.whole', name: 'whole', plural: 'whole', type: 'count' },
   clove: { id: 'clove', nameKey: 'unit.clove', name: 'clove', plural: 'cloves', type: 'count' },
+  sprig: { id: 'sprig', nameKey: 'unit.sprig', name: 'sprig', plural: 'sprigs', type: 'count' },
+  pinch: { id: 'pinch', nameKey: 'unit.pinch', name: 'pinch', plural: 'pinches', type: 'count' },
   
   // Size descriptors
   small: { id: 'small', nameKey: 'unit.small', name: 'small', plural: 'small', type: 'size' },
@@ -80,6 +82,9 @@ export const PREPARATION_METHODS = {
   frozen: { id: 'frozen', nameKey: 'prep.frozen', name: 'frozen', requiresStep: false, category: 'state' },
   dried: { id: 'dried', nameKey: 'prep.dried', name: 'dried', requiresStep: false, category: 'state' },
   cooked: { id: 'cooked', nameKey: 'prep.cooked', name: 'cooked', requiresStep: false, category: 'state' },
+  skinless: { id: 'skinless', nameKey: 'prep.skinless', name: 'skinless', requiresStep: false, category: 'state' },
+  boneless: { id: 'boneless', nameKey: 'prep.boneless', name: 'boneless', requiresStep: false, category: 'state' },
+  divided: { id: 'divided', nameKey: 'prep.divided', name: 'divided', requiresStep: false, category: 'state' },
   
   // Form descriptors (don't require steps)
   halves: { id: 'halves', nameKey: 'prep.halves', name: 'halves', requiresStep: false, category: 'form' },
@@ -136,6 +141,17 @@ export const INGREDIENTS = {
   },
   
   // Proteins
+  chicken: {
+    id: 'chicken',
+    nameKey: 'ingredient.chicken',
+    name: 'chicken',
+    plural: 'chickens',
+    category: 'proteins',
+    commonUnits: ['piece', 'lb', 'oz', 'whole'],
+    commonPreparations: ['whole', 'cut up', 'quartered'],
+    searchTerms: ['chicken', 'whole chicken', 'chicken pieces']
+  },
+  
   chicken_breast: {
     id: 'chicken_breast',
     nameKey: 'ingredient.chicken_breast',
@@ -143,8 +159,8 @@ export const INGREDIENTS = {
     plural: 'chicken breasts',
     category: 'proteins',
     commonUnits: ['piece', 'lb', 'oz'],
-    commonPreparations: ['cubed', 'sliced', 'whole'],
-    searchTerms: ['chicken breast', 'chicken breasts', 'chicken']
+    commonPreparations: ['cubed', 'sliced', 'whole', 'skinless', 'boneless', 'halves'],
+    searchTerms: ['chicken breast', 'chicken breasts', 'chicken', 'breast']
   },
   
   ground_beef: {
@@ -227,6 +243,28 @@ export const INGREDIENTS = {
     searchTerms: ['black pepper', 'pepper', 'ground pepper']
   },
   
+  parsley: {
+    id: 'parsley',
+    nameKey: 'ingredient.parsley',
+    name: 'parsley',
+    plural: 'parsley',
+    category: 'spices',
+    commonUnits: ['sprig', 'tbsp', 'tsp', 'cup'],
+    commonPreparations: ['fresh', 'dried', 'chopped', 'minced'],
+    searchTerms: ['parsley', 'fresh parsley', 'dried parsley', 'italian parsley', 'flat leaf parsley']
+  },
+  
+  oregano: {
+    id: 'oregano',
+    nameKey: 'ingredient.oregano',
+    name: 'oregano',
+    plural: 'oregano',
+    category: 'spices',
+    commonUnits: ['tsp', 'tbsp', 'pinch'],
+    commonPreparations: ['fresh', 'dried', 'crushed'],
+    searchTerms: ['oregano', 'fresh oregano', 'dried oregano', 'italian oregano']
+  },
+  
   // Oils
   olive_oil: {
     id: 'olive_oil',
@@ -237,6 +275,18 @@ export const INGREDIENTS = {
     commonUnits: ['tbsp', 'tsp', 'cup'],
     commonPreparations: ['extra virgin', 'virgin', 'light'],
     searchTerms: ['olive oil', 'extra virgin olive oil', 'evoo']
+  },
+  
+  // Fruits
+  lemon: {
+    id: 'lemon',
+    nameKey: 'ingredient.lemon',
+    name: 'lemon',
+    plural: 'lemons',
+    category: 'fruits',
+    commonUnits: ['piece', 'whole', 'tbsp', 'tsp', 'medium', 'large'],
+    commonPreparations: ['juiced', 'zested', 'sliced', 'wedges', 'halved'],
+    searchTerms: ['lemon', 'lemons', 'lemon juice', 'fresh lemon']
   },
   
   // Pantry
