@@ -6,8 +6,8 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { InferenceSession, Tensor } from 'onnxruntime-react-native';
-import SimpleTokenizer from './SimpleTokenizer';
+// import { InferenceSession, Tensor } from 'onnxruntime-react-native'; // Temporarily disabled for Expo Go compatibility
+// import SimpleTokenizer from './SimpleTokenizer'; // Temporarily disabled for Expo Go compatibility
 import VectorDatabase from './VectorDatabase';
 import VectorConfig from './VectorConfig';
 
@@ -39,34 +39,25 @@ class VectorService {
       this.applyConfiguration();
       
       if (this.useRealEmbeddings) {
-        // Initialize tokenizer
-        this.tokenizer = new SimpleTokenizer();
-        console.log('Tokenizer initialized');
-        
-        // Initialize vector database if enabled
-        if (VectorConfig.isVectorDatabaseEnabled()) {
-          await VectorDatabase.initialize();
-          console.log('Vector database initialized');
-        }
-        
-        // For now, we'll use a placeholder until we download the actual model
-        // TODO: Load the actual all-MiniLM-L6-v2 ONNX model from assets
-        console.log('Note: ONNX model loading placeholder - real model integration pending');
-        
-        // Load cached embeddings from storage (fallback for now)
-        await this.loadEmbeddingCache();
-        
-        // Start cache cleanup timer
-        this.startCacheCleanup();
-        
-        this.isInitialized = true;
-        console.log('VectorService initialized successfully (Phase 2 mode)');
-      } else {
-        // Fallback to Phase 1 pseudo-embeddings
-        await this.loadEmbeddingCache();
-        this.isInitialized = true;
-        console.log('VectorService initialized in fallback mode');
+        // Real embeddings are temporarily disabled for Expo Go compatibility
+        console.log('Real embeddings disabled for Expo Go compatibility - using pseudo-embeddings');
+        this.useRealEmbeddings = false;
       }
+      
+      // Initialize vector database if enabled
+      if (VectorConfig.isVectorDatabaseEnabled()) {
+        await VectorDatabase.initialize();
+        console.log('Vector database initialized');
+      }
+      
+      // Load cached embeddings from storage
+      await this.loadEmbeddingCache();
+      
+      // Start cache cleanup timer
+      this.startCacheCleanup();
+      
+      this.isInitialized = true;
+      console.log('VectorService initialized successfully (pseudo-embedding mode for Expo Go)');
       
       return true;
     } catch (error) {
@@ -223,38 +214,9 @@ class VectorService {
    * @returns {Promise<Array>} - 384-dimensional embedding vector
    */
   async generateRealEmbedding(text) {
-    const startTime = Date.now();
-    
-    // Tokenize the input text
-    const encoded = this.tokenizer.encode(text, this.maxSequenceLength);
-    
-    // Create ONNX tensors
-    const inputIds = new Tensor('int64', new BigInt64Array(encoded.input_ids.map(BigInt)), [1, encoded.input_ids.length]);
-    const attentionMask = new Tensor('int64', new BigInt64Array(encoded.attention_mask.map(BigInt)), [1, encoded.attention_mask.length]);
-    const tokenTypeIds = new Tensor('int64', new BigInt64Array(encoded.token_type_ids.map(BigInt)), [1, encoded.token_type_ids.length]);
-    
-    // Run inference
-    const feeds = {
-      input_ids: inputIds,
-      attention_mask: attentionMask,
-      token_type_ids: tokenTypeIds
-    };
-    
-    const results = await this.session.run(feeds);
-    
-    // Extract embeddings from the results (usually from 'last_hidden_state' or 'pooler_output')
-    const embeddings = results.last_hidden_state || results.pooler_output;
-    
-    // Apply mean pooling over the sequence dimension (excluding padding tokens)
-    const pooledEmbedding = this.meanPooling(embeddings.data, encoded.attention_mask);
-    
-    // Normalize the embedding
-    const normalizedEmbedding = this.normalizeVector(pooledEmbedding);
-    
-    const duration = Date.now() - startTime;
-    console.log(`Real embedding generation took ${duration}ms`);
-    
-    return normalizedEmbedding;
+    // Real embeddings are temporarily disabled for Expo Go compatibility
+    console.warn('Real embedding generation not available in Expo Go mode - falling back to pseudo-embedding');
+    return this.generatePseudoEmbedding(text);
   }
 
   /**

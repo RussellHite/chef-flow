@@ -44,7 +44,6 @@
     "plugins": [
       "expo-dev-client",
       "expo-build-properties",
-      "onnxruntime-react-native",
       [
         "expo-notifications",
         {

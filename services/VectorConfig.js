@@ -11,9 +11,9 @@ class VectorConfig {
   constructor() {
     this.config = {
       // Feature flags
-      vectorFeaturesEnabled: true,
-      realEmbeddingsEnabled: true,
-      vectorDatabaseEnabled: true,
+      vectorFeaturesEnabled: true, // Re-enabled for pseudo-embedding mode
+      realEmbeddingsEnabled: false, // Disabled for Expo Go compatibility
+      vectorDatabaseEnabled: true, // Re-enabled for pseudo-embedding mode
       migrationAutoStart: false,
       
       // Performance settings
