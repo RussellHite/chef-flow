@@ -13,7 +13,7 @@ class VectorConfig {
       // Feature flags
       vectorFeaturesEnabled: true, // Re-enabled for pseudo-embedding mode
       realEmbeddingsEnabled: false, // Disabled for Expo Go compatibility
-      vectorDatabaseEnabled: true, // Re-enabled for pseudo-embedding mode
+      vectorDatabaseEnabled: false, // Disabled for Expo Go compatibility - requires native SQLite
       migrationAutoStart: false,
       
       // Performance settings

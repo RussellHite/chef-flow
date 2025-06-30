@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigationState } from '@react-navigation/native';
+import { useNavigationState, useNavigation } from '@react-navigation/native';
 import { useCookingSession } from '../hooks/useCookingSession';
 import { formatTimerDisplay } from '../utils/cookingSessionUtils';
 import { colors } from '../styles/colors';
@@ -28,8 +28,9 @@ import { typography } from '../styles/typography';
 const INDICATOR_HEIGHT = 48;
 const ANIMATION_DURATION = 300;
 
-export default function CookingIndicator({ navigation, onPress }) {
+export default function CookingIndicator({ onPress }) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   
   // Get current navigation state to determine if on cooking screens
   const navigationState = useNavigationState(state => state);

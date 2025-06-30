@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,7 @@ import AddRecipeScreen from '../screens/AddRecipeScreen';
 import EditRecipeScreen from '../screens/EditRecipeScreen';
 import CookRecipeScreen from '../screens/CookRecipeScreen';
 import CookingFlowScreen from '../screens/CookingFlowScreen';
-import CookingIndicator from '../components/CookingIndicator';
+// import CookingIndicator from '../components/CookingIndicator'; // Temporarily disabled
 import { colors } from '../styles/colors';
 
 const Tab = createBottomTabNavigator();
@@ -182,21 +182,10 @@ function TabNavigator() {
   );
 }
 
-function AppContent() {
-  const navigation = useNavigation();
-  
-  return (
-    <>
-      <TabNavigator />
-      <CookingIndicator navigation={navigation} />
-    </>
-  );
-}
-
 export default function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
-      <AppContent />
+      <TabNavigator />
     </NavigationContainer>
   );
 }

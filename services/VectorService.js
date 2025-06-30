@@ -8,8 +8,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // import { InferenceSession, Tensor } from 'onnxruntime-react-native'; // Temporarily disabled for Expo Go compatibility
 // import SimpleTokenizer from './SimpleTokenizer'; // Temporarily disabled for Expo Go compatibility
-import VectorDatabase from './VectorDatabase';
+// import VectorDatabase from './VectorDatabase'; // Temporarily disabled for Expo Go compatibility
 import VectorConfig from './VectorConfig';
+
+// Stub VectorDatabase for Expo Go compatibility
+const VectorDatabase = {
+  isInitialized: false,
+  initialize: async () => false,
+  storeEmbedding: async () => false,
+  getEmbedding: async () => null,
+  findSimilarIngredients: async () => [],
+  batchStoreEmbeddings: async () => false,
+  getStats: async () => ({ error: 'Vector database not available in Expo Go' })
+};
 
 class VectorService {
   constructor() {
@@ -39,15 +50,15 @@ class VectorService {
       this.applyConfiguration();
       
       if (this.useRealEmbeddings) {
-        // Real embeddings are temporarily disabled for Expo Go compatibility
+        // Real embeddings are disabled for Expo Go compatibility
         console.log('Real embeddings disabled for Expo Go compatibility - using pseudo-embeddings');
         this.useRealEmbeddings = false;
       }
       
       // Initialize vector database if enabled
       if (VectorConfig.isVectorDatabaseEnabled()) {
-        await VectorDatabase.initialize();
-        console.log('Vector database initialized');
+        // VectorDatabase disabled for Expo Go compatibility
+        console.log('Vector database disabled for Expo Go - using in-memory cache only');
       }
       
       // Load cached embeddings from storage
