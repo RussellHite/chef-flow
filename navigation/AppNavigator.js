@@ -10,7 +10,6 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import RecipesScreen from '../screens/RecipesScreen';
 import AdminScreen from '../screens/AdminScreen';
 import IngredientListScreen from '../screens/IngredientListScreen';
-import ParsingTrainingScreen from '../screens/ParsingTrainingScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddRecipeScreen from '../screens/AddRecipeScreen';
 import EditRecipeScreen from '../screens/EditRecipeScreen';
@@ -68,29 +67,18 @@ function AdminStack() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.primary,
-        },
-        headerTintColor: colors.surface,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        headerShown: false,
       }}
     >
       <Stack.Screen 
         name="AdminHome" 
         component={AdminScreen}
-        options={{ title: 'Admin' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen 
         name="IngredientList" 
         component={IngredientListScreen}
-        options={{ title: 'Ingredient Database' }}
-      />
-      <Stack.Screen 
-        name="ParsingTraining" 
-        component={ParsingTrainingScreen}
-        options={{ title: 'Parsing Training' }}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
@@ -143,14 +131,7 @@ function TabNavigator() {
         component={WelcomeScreen}
         options={{ 
           title: 'Chef Flow',
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: colors.primary,
-          },
-          headerTintColor: colors.surface,
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
+          headerShown: false,
         }}
       />
       <Tab.Screen 

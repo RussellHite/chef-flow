@@ -12,7 +12,7 @@ import {
   INGREDIENTS, 
   UNIT_CONVERSIONS 
 } from '../data/ingredientDatabase.js';
-import TrainingDataService from './TrainingDataService.js';
+// TrainingDataService removed
 
 class EmbeddedIngredientDataSource {
   constructor() {
@@ -129,12 +129,7 @@ class EmbeddedIngredientDataSource {
     // First, preprocess the text to fix common formatting issues
     let text = this._preprocessIngredientText(ingredientText.trim());
     
-    // Check if we have training data for similar ingredients
-    const trainedResult = TrainingDataService.applyTrainingToIngredient(text);
-    if (trainedResult) {
-      // console.log('Applied training data for:', text);
-      return trainedResult;
-    }
+    // Training data service removed - skip training data lookup
     
     // Initialize result structure
     const result = {

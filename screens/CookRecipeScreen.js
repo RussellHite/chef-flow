@@ -17,8 +17,23 @@ import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
 
 export default function CookRecipeScreen({ route, navigation }) {
-  const { recipe } = route.params;
+  const { recipe } = route.params || {};
   const [readyByTime, setReadyByTime] = useState('');
+
+
+  // Handle case where recipe is undefined
+  if (!recipe) {
+    return (
+      <SafeAreaView style={commonStyles.container}>
+        <View style={[commonStyles.container, commonStyles.centerContent]}>
+          <Text style={styles.errorText}>Recipe not found</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
   
   // Get cooking session state
   const { isActive, recipeName, endCookingSession } = useCookingSession();
@@ -40,8 +55,8 @@ export default function CookRecipeScreen({ route, navigation }) {
 
   const calculateReadyByTime = () => {
     // Calculate total time from steps
-    const totalMinutes = recipe.steps.reduce((total, step) => {
-      if (step.timing) {
+    const totalMinutes = (recipe?.steps || []).reduce((total, step) => {
+      if (step?.timing) {
         const timeMatch = step.timing.match(/(\d+)/);
         return total + (timeMatch ? parseInt(timeMatch[1]) : 0);
       }
@@ -64,10 +79,10 @@ export default function CookRecipeScreen({ route, navigation }) {
 
   const handleLetsCook = () => {
     // Check if there's already an active cooking session for a different recipe
-    if (isActive && recipeName !== recipe.title) {
+    if (isActive && recipeName !== recipe?.title) {
       Alert.alert(
         'Active Cooking Session',
-        `You're currently cooking "${recipeName}". Would you like to end that session and start cooking "${recipe.title}"?`,
+        `You're currently cooking "${recipeName}". Would you like to end that session and start cooking "${recipe?.title}"?`,
         [
           { text: 'Cancel', style: 'cancel' },
           { 
@@ -96,7 +111,7 @@ export default function CookRecipeScreen({ route, navigation }) {
     <View style={styles.safeArea}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>{recipe.title}</Text>
+          <Text style={styles.title}>{recipe?.title || 'Recipe'}</Text>
           <View style={styles.metaInfo}>
             <View style={styles.readyByContainer}>
               <Ionicons name="restaurant" size={20} color={colors.primary} />
@@ -112,7 +127,7 @@ export default function CookRecipeScreen({ route, navigation }) {
             Collect your ingredients to cook
           </Text>
           
-          {recipe.ingredients && recipe.ingredients.map((ingredient) => (
+          {recipe?.ingredients && recipe.ingredients.map((ingredient) => (
             <StructuredIngredient
               key={ingredient.id}
               ingredient={ingredient}
@@ -142,7 +157,7 @@ export default function CookRecipeScreen({ route, navigation }) {
 
         <View style={styles.buttonContainer}>
           <Button
-            title={isActive && recipeName === recipe.title ? "Continue Cooking" : "Let's Cook!"}
+            title={isActive && recipeName === recipe?.title ? "Continue Cooking" : "Let's Cook!"}
             onPress={handleLetsCook}
             style={styles.cookButton}
           />
@@ -250,6 +265,23 @@ const styles = StyleSheet.create({
   },
   resumeButtonText: {
     ...typography.caption,
+    color: colors.surface,
+    fontWeight: '600',
+  },
+  errorText: {
+    ...typography.h2,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  backButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    ...typography.body,
     color: colors.surface,
     fontWeight: '600',
   },

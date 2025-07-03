@@ -6,6 +6,8 @@ import {
   StyleSheet,
   Alert,
   TouchableOpacity,
+  TextInput,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,73 +20,79 @@ import { commonStyles } from '../styles/common';
 import { useRecipes } from '../contexts/RecipeContext';
 import { updateIngredientTracking } from '../services/IngredientTrackingService';
 import { useRecipeCreationTracking } from '../hooks/useIngredientTracking';
+import { extractAmount, extractName, getIngredientName, getIngredientDisplayText } from '../utils/ingredientUtils';
+import { calculateParsingProgress, getRecognizedIngredientsCount, getNeedsReviewCount, generateId } from '../utils/recipeUtils';
+import { convertToPresentTense, capitalizeFirst } from '../utils/textUtils';
+import { RecipeContentSyncService } from '../services/RecipeContentSyncService';
+import { IngredientParser } from '../services/IngredientParser';
+import { useRecipeEditor } from '../hooks/useRecipeEditor';
+import { useIngredientManager } from '../hooks/useIngredientManager';
+import { useStepManager } from '../hooks/useStepManager';
+import { RecipeEditorHeader, IngredientsSection, StepsSection } from '../components/RecipeEditor';
 
-// Helper functions for ingredient parsing
-const extractAmount = (ingredientText) => {
-  const match = ingredientText.match(/^(\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?(?:\s*\([^)]+\))?)\s*(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|whole|medium|large|small|cans?|packages?|boxes?|containers?)/i);
-  return match ? `${match[1]} ${match[2]}` : '';
-};
-
-const extractName = (ingredientText) => {
-  const match = ingredientText.match(/^(\d+(?:[-–]\d+)?(?:\s+to\s+\d+)?(?:\/\d+)?(?:\.\d+)?(?:\s*\([^)]+\))?)\s*(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|whole|medium|large|small|cans?|packages?|boxes?|containers?)\s+(.+)/i);
-  return match ? match[3] : ingredientText;
-};
+const { width } = Dimensions.get('window');
 
 export default function EditRecipeScreen({ route, navigation }) {
   const { recipe, originalContent, isNew, fromHome } = route.params;
   const { updateRecipe, deleteRecipe } = useRecipes();
-  const [editedRecipe, setEditedRecipe] = useState(recipe);
-  const [ingredients, setIngredients] = useState(
-    recipe.ingredients ? recipe.ingredients : []
-  );
+  
+  // Initialize hooks for state management
+  const recipeEditor = useRecipeEditor(recipe, isNew, {
+    onSave: updateRecipe,
+    onDelete: deleteRecipe,
+    navigation
+  });
+  
+  const ingredientManager = useIngredientManager(recipe.ingredients || []);
+  
+  const stepManager = useStepManager(recipe.steps || [], {
+    onStepsChange: recipeEditor.updateSteps
+  });
+  
+  // Local state variables
   const [isSaving, setIsSaving] = useState(false);
   const [originalStepContent, setOriginalStepContent] = useState(new Map());
-  const [newIngredientEditing, setNewIngredientEditing] = useState(false);
-  const [tempNewIngredient, setTempNewIngredient] = useState(null);
   
   // Initialize ingredient tracking for recipe editing
   const tracking = useRecipeCreationTracking();
+  
+  // Calculate ingredient status using utilities
+  const stats = ingredientManager.getStats();
+  const recognizedCount = stats.recognized;
+  const needsReviewCount = stats.needsReview;
+  const parsingProgress = stats.progress;
 
   useEffect(() => {
     navigation.setOptions({
       title: isNew ? 'Review Recipe' : 'Edit Recipe',
-      headerLeft: fromHome ? undefined : () => (
-        <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
-          <Ionicons name="close" size={24} color={colors.surface} />
-        </TouchableOpacity>
-      ),
-      headerRight: !isNew ? () => (
-        <TouchableOpacity onPress={handleDeleteRecipe} style={styles.headerButton}>
-          <Ionicons name="trash" size={24} color={colors.surface} />
-        </TouchableOpacity>
-      ) : undefined,
+      headerShown: false, // We'll render our own header
     });
     
     // Store original step content on first load
-    if (editedRecipe.steps && originalStepContent.size === 0) {
+    if (recipeEditor.recipe.steps && originalStepContent.size === 0) {
       const originalContent = new Map();
-      editedRecipe.steps.forEach(step => {
+      recipeEditor.recipe.steps.forEach(step => {
         originalContent.set(step.id, step.content);
       });
       setOriginalStepContent(originalContent);
     }
-  }, [navigation, isNew, fromHome, editedRecipe.steps, originalStepContent.size]);
+  }, [navigation, isNew, fromHome, recipeEditor.recipe.steps, originalStepContent.size]);
 
   // Sync ingredients with main recipe and apply tracking if needed
   useEffect(() => {
     // Check if recipe needs ingredient tracking migration
-    const needsTracking = editedRecipe.steps && 
-                         editedRecipe.steps.length > 0 && 
-                         editedRecipe.steps.some(step => 
+    const needsTracking = recipeEditor.recipe.steps && 
+                         recipeEditor.recipe.steps.length > 0 && 
+                         recipeEditor.recipe.steps.some(step => 
                            step.ingredients && 
                            step.ingredients.length > 0 && 
                            typeof step.ingredients[0] === 'string'
                          );
     
-    if (needsTracking && ingredients.length > 0) {
+    if (needsTracking && ingredientManager.ingredients.length > 0) {
       try {
         // Apply ingredient tracking to existing recipe
-        const { steps: trackedSteps, ingredientTracker } = updateIngredientTracking(editedRecipe.steps, ingredients);
+        const { steps: trackedSteps, ingredientTracker } = updateIngredientTracking(recipeEditor.recipe.steps, ingredientManager.ingredients);
         
         // Also update step content with amounts
         const stepsWithUpdatedContent = trackedSteps.map((step, stepIndex) => {
@@ -95,7 +103,7 @@ export default function EditRecipeScreen({ route, navigation }) {
               if (ingredientRef && typeof ingredientRef === 'object' && 
                   ingredientRef.isFirstMention && ingredientRef.id) {
                 
-                const ingredient = ingredients.find(ing => ing.id === ingredientRef.id);
+                const ingredient = ingredientManager.ingredients.find(ing => ing.id === ingredientRef.id);
                 if (!ingredient) return;
                 
                 const ingredientName = ingredient.structured?.ingredient?.name;
@@ -132,87 +140,32 @@ export default function EditRecipeScreen({ route, navigation }) {
           };
         });
         
-        setEditedRecipe(prev => ({
-          ...prev,
-          ingredients: ingredients,
-          steps: stepsWithUpdatedContent,
-          ingredientTracker
-        }));
+        ingredientManager.setAllIngredients(ingredientManager.ingredients);
+        stepManager.setAllSteps(stepsWithUpdatedContent);
       } catch (error) {
         console.warn('Error applying ingredient tracking:', error);
         // Fallback to simple update
-        setEditedRecipe(prev => ({
-          ...prev,
-          ingredients: ingredients
-        }));
+        ingredientManager.setAllIngredients(ingredientManager.ingredients);
       }
     } else {
-      setEditedRecipe(prev => ({
-        ...prev,
-        ingredients: ingredients
-      }));
+      ingredientManager.setAllIngredients(ingredientManager.ingredients);
     }
-  }, [ingredients]);
+  }, [ingredientManager.ingredients]);
 
   const handleStepUpdate = (stepId, updatedStep) => {
-    setEditedRecipe(prev => ({
-      ...prev,
-      steps: prev.steps.map(step => 
-        step.id === stepId ? updatedStep : step
-      ),
-    }));
+    stepManager.updateStep(stepId, updatedStep);
   };
 
   const handleStepReorder = (fromIndex, toIndex) => {
-    const newSteps = [...editedRecipe.steps];
-    const [removed] = newSteps.splice(fromIndex, 1);
-    newSteps.splice(toIndex, 0, removed);
-    
-    setEditedRecipe(prev => ({
-      ...prev,
-      steps: newSteps,
-    }));
+    stepManager.reorderSteps(fromIndex, toIndex);
   };
 
   const handleAddStep = (afterIndex) => {
-    const newStep = {
-      id: `step_${Date.now()}`,
-      content: '',
-      timing: null,
-      ingredients: [],
-    };
-
-    const newSteps = [...editedRecipe.steps];
-    newSteps.splice(afterIndex + 1, 0, newStep);
-    
-    setEditedRecipe(prev => ({
-      ...prev,
-      steps: newSteps,
-    }));
+    stepManager.addStep('', afterIndex + 1);
   };
 
   const handleCreateStepFromAction = (stepContent, ingredientId) => {
-    const newStep = {
-      id: `step_${Date.now()}`,
-      content: stepContent,
-      timing: null,
-      ingredients: [ingredientId],
-    };
-
-    // Store the original content for this new step BEFORE adding to recipe
-    setOriginalStepContent(prev => {
-      const updated = new Map(prev);
-      updated.set(newStep.id, stepContent);
-      return updated;
-    });
-
-    setEditedRecipe(prev => ({
-      ...prev,
-      steps: [newStep, ...prev.steps],
-    }));
-    
-    // Don't trigger updateAllStepsContent here since the step already has the right content
-    // The step content from action parsing already includes the amount
+    stepManager.addStepFromAction(stepContent, ingredientId, 0);
   };
 
   const handleDeleteStep = (stepId) => {
@@ -225,10 +178,7 @@ export default function EditRecipeScreen({ route, navigation }) {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            setEditedRecipe(prev => ({
-              ...prev,
-              steps: prev.steps.filter(step => step.id !== stepId),
-            }));
+            stepManager.deleteStep(stepId);
           },
         },
       ]
@@ -237,32 +187,37 @@ export default function EditRecipeScreen({ route, navigation }) {
 
   const handleSave = async () => {
     setIsSaving(true);
-    
     try {
-      // TODO: Implement recipe saving logic
-      await saveRecipe(editedRecipe, isNew);
+      // Update recipe with current ingredient and step data
+      recipeEditor.updateRecipe({
+        ingredients: ingredientManager.ingredients,
+        steps: stepManager.steps
+      });
       
-      // Track recipe completion
-      if (tracking.isInitialized && ingredients.length > 0) {
-        await tracking.trackRecipeCompleted(ingredients, {
-          name: editedRecipe.title,
-          id: editedRecipe.id || `recipe_${Date.now()}`,
-          totalIngredients: ingredients.length,
-          totalSteps: editedRecipe.steps?.length || 0,
-          isComplete: true,
-          source: isNew ? 'recipe_creation' : 'recipe_edit'
-        });
-      }
-      
-      if (isNew) {
-        navigation.navigate('Home', { 
-          newRecipe: { ...editedRecipe, originalContent },
-          showSuccess: true 
-        });
-      } else {
-        // Update existing recipe in context
-        updateRecipe({ ...editedRecipe, originalContent });
-        navigation.goBack();
+      const success = await recipeEditor.saveRecipe();
+      if (success) {
+        // Track recipe completion
+        if (tracking.isInitialized && ingredientManager.ingredients.length > 0) {
+          await tracking.trackRecipeCompleted(ingredientManager.ingredients, {
+            name: recipeEditor.title,
+            id: recipeEditor.recipe.id || `recipe_${Date.now()}`,
+            totalIngredients: ingredientManager.ingredients.length,
+            totalSteps: stepManager.steps?.length || 0,
+            isComplete: true,
+            source: isNew ? 'recipe_creation' : 'recipe_edit'
+          });
+        }
+        
+        if (isNew) {
+          navigation.navigate('Home', { 
+            newRecipe: { ...recipeEditor.recipe, originalContent },
+            showSuccess: true 
+          });
+        } else {
+          // Update existing recipe in context
+          updateRecipe({ ...recipeEditor.recipe, originalContent });
+          navigation.goBack();
+        }
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to save recipe. Please try again.');
@@ -285,14 +240,14 @@ export default function EditRecipeScreen({ route, navigation }) {
   const handleDeleteRecipe = () => {
     Alert.alert(
       'Delete Recipe?',
-      `Are you sure you want to delete "${editedRecipe.title}"? This action cannot be undone.`,
+      `Are you sure you want to delete "${recipeEditor.recipe.title}"? This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete Recipe',
           style: 'destructive',
           onPress: () => {
-            deleteRecipe(editedRecipe.id);
+            deleteRecipe(recipeEditor.recipe.id);
             navigation.navigate('Recipes');
           },
         },
@@ -308,7 +263,7 @@ export default function EditRecipeScreen({ route, navigation }) {
   };
 
   const calculateTotalTime = () => {
-    return editedRecipe.steps.reduce((total, step) => {
+    return recipeEditor.recipe.steps.reduce((total, step) => {
       if (step.timing) {
         const timeMatch = step.timing.match(/(\d+)/);
         return total + (timeMatch ? parseInt(timeMatch[1]) : 0);
@@ -319,6 +274,19 @@ export default function EditRecipeScreen({ route, navigation }) {
 
 
   const handleIngredientEdit = async (ingredient, newText) => {
+    try {
+      const updatedIngredient = await ingredientManager.editIngredient(ingredient, newText);
+      
+      // Update recipe with new ingredients and sync steps
+      recipeEditor.updateIngredients(ingredientManager.ingredients);
+      stepManager.syncWithIngredients(ingredientManager.ingredients);
+    } catch (error) {
+      console.error('Error editing ingredient:', error);
+      Alert.alert('Error', 'Failed to update ingredient. Please try again.');
+    }
+  };
+
+  const handleIngredientEditOld = async (ingredient, newText) => {
     console.log('🔧 EditRecipeScreen handleIngredientEdit:', {
       ingredientId: ingredient.id,
       originalText: ingredient.originalText,
@@ -390,8 +358,10 @@ export default function EditRecipeScreen({ route, navigation }) {
               : newText.trim()
           };
           
-          setIngredients(prev => 
-            prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          ingredientManager.setAllIngredients(
+            ingredientManager.ingredients.map(ing => 
+              ing.id === ingredient.id ? updatedIngredient : ing
+            )
           );
         } catch (error) {
           console.warn('Error parsing structured ingredient:', error);
@@ -402,8 +372,10 @@ export default function EditRecipeScreen({ route, navigation }) {
             displayText: newText.trim()
           };
           
-          setIngredients(prev => 
-            prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          ingredientManager.setAllIngredients(
+            ingredientManager.ingredients.map(ing => 
+              ing.id === ingredient.id ? updatedIngredient : ing
+            )
           );
         }
       } else if (newText && newText.trim()) {
@@ -457,8 +429,10 @@ export default function EditRecipeScreen({ route, navigation }) {
               : newText.trim()
           };
           
-          setIngredients(prev => 
-            prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          ingredientManager.setAllIngredients(
+            ingredientManager.ingredients.map(ing => 
+              ing.id === ingredient.id ? updatedIngredient : ing
+            )
           );
         } catch (error) {
           console.warn('Error parsing ingredient:', error);
@@ -470,8 +444,10 @@ export default function EditRecipeScreen({ route, navigation }) {
             displayText: newText.trim()
           };
           
-          setIngredients(prev => 
-            prev.map(ing => ing.id === ingredient.id ? updatedIngredient : ing)
+          ingredientManager.setAllIngredients(
+            ingredientManager.ingredients.map(ing => 
+              ing.id === ingredient.id ? updatedIngredient : ing
+            )
           );
         }
       }
@@ -497,917 +473,164 @@ export default function EditRecipeScreen({ route, navigation }) {
   };
 
   const updateAllStepsContent = (updatedIngredient = null) => {
-    setEditedRecipe(prev => {
-      if (!prev.steps || !ingredients) return prev;
-      
-      console.log('Updating all steps content from original...', updatedIngredient ? `with updated ingredient: ${updatedIngredient.id}` : 'using current state');
-      
-      // Create a new Map with current original content, adding missing entries
-      const currentOriginalContent = new Map(originalStepContent);
-      prev.steps.forEach(step => {
-        if (!currentOriginalContent.has(step.id)) {
-          // Clean any existing duplications before storing as original
-          let cleanContent = step.content;
-          
-          // Remove obvious duplications like "1 1 lemon" -> "1 lemon" or "2 sprigs 2 sprigs parsley" -> "2 sprigs parsley"
-          cleanContent = cleanContent.replace(/(\b\d+(?:\.\d+)?\s+(?:cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|sprigs?|pinch|pinches?|whole|medium|large|small|cans?|packages?|boxes?|containers?)\s+)\1+/gi, '$1');
-          
-          // Remove number duplications like "1 1 lemon" -> "1 lemon"
-          cleanContent = cleanContent.replace(/(\b\d+(?:\.\d+)?)\s+\1+(\s+\w+)/gi, '$1$2');
-          
-          currentOriginalContent.set(step.id, cleanContent);
-        }
-      });
-      
-      // Update the originalStepContent state with new entries
-      if (currentOriginalContent.size > originalStepContent.size) {
-        setOriginalStepContent(currentOriginalContent);
-      }
-      
-      // Track which ingredients have been mentioned
-      const ingredientMentions = new Map(); // ingredientName -> first step index
-      
-      const updatedSteps = prev.steps.map((step, stepIndex) => {
-        // Always start from the original content to prevent accumulation
-        const originalContent = currentOriginalContent.get(step.id) || step.content;
-        let updatedContent = originalContent;
-        
-        console.log(`Processing step ${stepIndex + 1}: "${originalContent}"`);
-        
-        // Special handling for action-generated steps
-        // These are steps that were created from ingredient actions and have a single ingredient
-        const isActionGeneratedStep = step.ingredients && step.ingredients.length === 1;
-        
-        console.log(`🔧 Step ${stepIndex + 1} debug:`, {
-          stepId: step.id,
-          isActionGenerated: isActionGeneratedStep,
-          stepIngredients: step.ingredients,
-          hasUpdatedIngredient: !!updatedIngredient,
-          updatedIngredientId: updatedIngredient?.id
-        });
-        
-        if (isActionGeneratedStep && updatedIngredient) {
-          const stepIngredient = step.ingredients[0];
-          // Handle both string IDs and object formats
-          const stepIngredientId = typeof stepIngredient === 'string' ? stepIngredient : stepIngredient?.id;
-          
-          console.log(`🔧 Comparing ingredient IDs: step=${stepIngredientId}, updated=${updatedIngredient.id}`);
-          
-          // Check if this step was generated from the updated ingredient
-          if (stepIngredientId === updatedIngredient.id) {
-            console.log(`🔧 MATCH! Updating action-generated step for ingredient: ${updatedIngredient.id}`);
-            
-            // Rebuild the step content with updated ingredient data
-            const ingredient = updatedIngredient;
-            console.log(`🔧 Ingredient preparation data:`, {
-              hasStructured: !!ingredient.structured,
-              hasPreparation: !!ingredient.structured?.preparation,
-              preparationName: ingredient.structured?.preparation?.name,
-              fullIngredient: ingredient
-            });
-            
-            if (ingredient.structured?.preparation?.name) {
-              const preparation = ingredient.structured.preparation.name;
-              
-              // Extract action words from preparation (like "chopped", "diced", etc.)
-              let actionMatch = preparation.match(/^(chopped|diced|sliced|minced|grated|shredded|peeled|crushed|juiced|zested|squeezed|mashed|pureed|blended|whipped|beaten|mixed|stirred|heated|cooked|boiled|fried|roasted|baked|grilled|steamed|sautéed)/i);
-              console.log(`🔧 Action match from preparation:`, { preparation, actionMatch });
-              
-              // If no action found in preparation, try to infer from step content
-              if (!actionMatch) {
-                const stepContent = originalContent.toLowerCase();
-                const stepActionMatch = stepContent.match(/^(chop|dice|slice|mince|grate|shred|peel|crush|juice|zest|squeeze|mash|puree|blend|whip|beat|mix|stir|heat|cook|boil|fry|roast|bake|grill|steam|sauté)\s/i);
-                if (stepActionMatch) {
-                  actionMatch = [stepActionMatch[0], stepActionMatch[1]];
-                  console.log(`🔧 Action inferred from step content:`, { stepContent, actionMatch });
-                }
-              }
-              
-              if (actionMatch) {
-                const action = actionMatch[1];
-                const quantity = ingredient.structured.quantity;
-                const unit = ingredient.structured.unit;
-                const ingredientName = ingredient.structured.ingredient?.name;
-                
-                // Rebuild step content like "Chop 2 medium onions"
-                let newStepContent = '';
-                
-                // Convert action to present tense and capitalize
-                const presentTenseAction = convertToPresentTense(action);
-                newStepContent += presentTenseAction.charAt(0).toUpperCase() + presentTenseAction.slice(1) + ' ';
-                
-                // Add quantity and unit
-                if (quantity !== null && quantity !== undefined) {
-                  newStepContent += quantity + ' ';
-                }
-                
-                if (unit) {
-                  const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
-                  newStepContent += unitName + ' ';
-                }
-                
-                // Add ingredient name
-                if (ingredientName) {
-                  newStepContent += ingredientName;
-                }
-                
-                updatedContent = newStepContent.trim();
-                console.log(`🔧 Rebuilt action step content: "${updatedContent}"`);
-                
-                // Update the stored original content so future updates work correctly
-                currentOriginalContent.set(step.id, updatedContent);
-              } else {
-                console.log(`🔧 No action match found in preparation: "${preparation}"`);
-              }
-            } else {
-              console.log(`🔧 No preparation data found, trying to infer action from step content`);
-              // Even without preparation, try to infer action from step content
-              const stepContent = originalContent.toLowerCase();
-              const stepActionMatch = stepContent.match(/^(chop|dice|slice|mince|grate|shred|peel|crush|juice|zest|squeeze|mash|puree|blend|whip|beat|mix|stir|heat|cook|boil|fry|roast|bake|grill|steam|sauté)\s/i);
-              if (stepActionMatch) {
-                const action = stepActionMatch[1];
-                const quantity = ingredient.structured.quantity;
-                const unit = ingredient.structured.unit;
-                const ingredientName = ingredient.structured.ingredient?.name;
-                
-                console.log(`🔧 Rebuilding step from inferred action:`, { action, quantity, unit, ingredientName });
-                
-                // Rebuild step content like "Juice 2 lemons"
-                let newStepContent = '';
-                
-                // Convert action to present tense and capitalize
-                const presentTenseAction = convertToPresentTense(action);
-                newStepContent += presentTenseAction.charAt(0).toUpperCase() + presentTenseAction.slice(1) + ' ';
-                
-                // Add quantity and unit
-                if (quantity !== null && quantity !== undefined) {
-                  newStepContent += quantity + ' ';
-                }
-                
-                if (unit) {
-                  const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
-                  newStepContent += unitName + ' ';
-                }
-                
-                // Add ingredient name
-                if (ingredientName) {
-                  newStepContent += ingredientName;
-                }
-                
-                updatedContent = newStepContent.trim();
-                console.log(`🔧 Rebuilt action step content from inferred action: "${updatedContent}"`);
-                
-                // Update the stored original content so future updates work correctly
-                currentOriginalContent.set(step.id, updatedContent);
-              }
-            }
-          } else {
-            console.log(`🔧 No ingredient ID match: step=${stepIngredientId}, updated=${updatedIngredient.id}`);
-          }
-        }
-        
-        // Create ingredients list with updated ingredient if provided
-        const currentIngredients = updatedIngredient 
-          ? ingredients.map(ing => ing.id === updatedIngredient.id ? updatedIngredient : ing)
-          : ingredients;
-        
-        // Process each ingredient to see if it's mentioned in this step
-        currentIngredients.forEach(ingredient => {
-          if (!ingredient.structured?.ingredient?.name) return;
-          
-          const ingredientName = ingredient.structured.ingredient.name;
-          console.log(`🔧 Processing ingredient: ${ingredientName}, quantity: ${ingredient.structured.quantity}`);
-          const regex = new RegExp(`\\b${ingredientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-          
-          if (regex.test(updatedContent)) {
-            const isFirstMention = !ingredientMentions.has(ingredientName);
-            
-            console.log(`Found "${ingredientName}" in step ${stepIndex + 1}, first mention: ${isFirstMention}`);
-            
-            if (isFirstMention) {
-              // Mark as mentioned and build full spec
-              ingredientMentions.set(ingredientName, stepIndex);
-              
-              // Check if the step already has amount/unit before the ingredient name
-              // This prevents duplicate replacements in action-generated steps
-              const quantity = ingredient.structured.quantity;
-              const unit = ingredient.structured.unit;
-              
-              // More flexible pattern matching - look for any number + optional unit + ingredient
-              const escapedIngredientName = ingredientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              
-              // Pattern 1: Exact quantity + unit + ingredient
-              let exactPattern = '';
-              if (quantity !== null && quantity !== undefined) {
-                exactPattern += quantity.toString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*';
-              }
-              if (unit) {
-                const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
-                exactPattern += unitName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*';
-              }
-              const exactMatch = exactPattern && 
-                new RegExp(exactPattern + escapedIngredientName, 'i').test(updatedContent);
-              
-              // Pattern 2: Any number + any unit + ingredient (for action-generated steps)
-              const anyAmountPattern = new RegExp(
-                '\\d+(?:\\.\\d+)?(?:\\s*/\\s*\\d+)?\\s+(?:' +
-                'cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|sprigs?|pinch|pinches?|whole|medium|large|small|cans?|packages?|boxes?|containers?' +
-                ')\\s+' + escapedIngredientName, 'i'
-              );
-              const generalMatch = anyAmountPattern.test(updatedContent);
-              
-              const alreadyHasAmount = exactMatch || generalMatch;
-              
-              console.log(`Amount check for "${ingredientName}": exact=${exactMatch}, general=${generalMatch}, content="${updatedContent}"`);
-              
-              if (!alreadyHasAmount) {
-                // Build amount + unit + name
-                let simpleSpec = '';
-                
-                if (quantity !== null && quantity !== undefined) {
-                  simpleSpec += quantity + ' ';
-                }
-                
-                if (unit) {
-                  const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
-                  simpleSpec += unitName + ' ';
-                }
-                
-                simpleSpec += ingredientName;
-                
-                // Replace with full specification
-                updatedContent = updatedContent.replace(regex, simpleSpec.trim());
-                console.log(`Replaced with: "${simpleSpec.trim()}", result: "${updatedContent}"`);
-              } else {
-                console.log(`Step already has amount for "${ingredientName}", skipping replacement`);
-              }
-            }
-            // For subsequent mentions, leave as just the ingredient name (no replacement needed)
-          }
-        });
-        
-        return {
-          ...step,
-          content: updatedContent
-        };
-      });
-      
-      return {
-        ...prev,
-        steps: updatedSteps
-      };
-    });
+    const currentSteps = stepManager.steps;
+    if (!currentSteps || !ingredientManager.ingredients) return;
+    
+    try {
+      const updatedSteps = RecipeContentSyncService.updateAllStepsContent(
+        currentSteps,
+        ingredientManager.ingredients,
+        originalStepContent,
+        updatedIngredient
+      );
+      stepManager.setAllSteps(updatedSteps);
+    } catch (error) {
+      console.error('Error updating steps content:', error);
+    }
   };
 
-  const updateStepsWithIngredient = (originalIngredient, updatedIngredient) => {
-    const originalName = getIngredientName(originalIngredient);
-    const newDisplayText = getIngredientDisplayText(updatedIngredient);
-    
-    // Build simple amount + unit + name format for step content
-    let simpleSpec = '';
-    if (updatedIngredient.structured) {
-      const quantity = updatedIngredient.structured.quantity;
-      const unit = updatedIngredient.structured.unit;
-      const ingredientName = updatedIngredient.structured.ingredient?.name || originalName;
-      
-      // Add quantity if it exists
-      if (quantity !== null && quantity !== undefined) {
-        simpleSpec += quantity + ' ';
-      }
-      
-      // Add unit if it exists
-      if (unit) {
-        const unitName = quantity === 1 ? (unit.name || unit.value) : (unit.plural || unit.name || unit.value);
-        simpleSpec += unitName + ' ';
-      }
-      
-      // Add ingredient name
-      simpleSpec += ingredientName;
-    } else {
-      simpleSpec = newDisplayText || originalName;
-    }
-    
-    // Track which steps have already mentioned this ingredient
-    const usedInSteps = new Set();
-    
-    // Store the updated steps separately to avoid intermediate state issues
-    const updatedSteps = [];
-    
-    setEditedRecipe(prev => ({
-      ...prev,
-      steps: prev.steps.map((step, stepIndex) => {
-        if (step.ingredients && step.ingredients.length > 0) {
-          const hasThisIngredient = step.ingredients.some(stepIngredient => 
-            isIngredientMatch(stepIngredient, originalName)
-          );
-          
-          if (hasThisIngredient) {
-            const isFirstMention = !usedInSteps.has(originalName);
-            usedInSteps.add(originalName);
-            
-            // Update step content to show amount on first mention
-            let updatedContent = step.content;
-            if (originalName && originalName.length > 2) {
-              const ingredientRegex = new RegExp(`\\b${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-              
-              // Check if this ingredient appears in the step content
-              if (ingredientRegex.test(updatedContent)) {
-                const simpleSpecTrimmed = simpleSpec.trim();
-                
-                // More comprehensive duplicate detection
-                const hasExactSpec = updatedContent.includes(simpleSpecTrimmed);
-                
-                // Check for any number followed by units followed by this ingredient
-                const quantityPattern = new RegExp(`\\d+(?:\\.\\d+)?(?:\\s*[-/]\\s*\\d+(?:\\.\\d+)?)?`, 'g');
-                const unitPattern = `(?:cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|gallons?|quarts?|pints?|cloves?|pieces?|pinch|sprigs?|cans?|packages?)`;
-                const amountBeforeIngredient = new RegExp(`\\d+[^.!?]*?${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
-                
-                const alreadyHasAmount = hasExactSpec || amountBeforeIngredient.test(updatedContent);
-                
-                console.log('Duplicate check for', originalName, ':', {
-                  stepContent: updatedContent,
-                  simpleSpec: simpleSpecTrimmed,
-                  hasExactSpec,
-                  alreadyHasAmount,
-                  isFirstMention
-                });
-                
-                if (isFirstMention && !alreadyHasAmount) {
-                  // First mention: replace plain ingredient name with amount + unit + name
-                  updatedContent = updatedContent.replace(ingredientRegex, simpleSpecTrimmed);
-                  console.log('Replaced with amount:', updatedContent);
-                } else if (!isFirstMention && !alreadyHasAmount) {
-                  // Subsequent mentions: ensure just ingredient name (no change needed if already plain)
-                  const justName = updatedIngredient.structured?.ingredient?.name || originalName;
-                  updatedContent = updatedContent.replace(ingredientRegex, justName);
-                }
-                // If alreadyHasAmount is true, don't modify the content
-              }
-            }
-            
-            // Update step ingredients array
-            const updatedStepIngredients = step.ingredients.map(stepIngredient => {
-              if (isIngredientMatch(stepIngredient, originalName)) {
-                return {
-                  id: updatedIngredient.id,
-                  text: isFirstMention ? simpleSpec.trim() : (updatedIngredient.structured?.ingredient?.name || originalName),
-                  fullText: newDisplayText,
-                  isFirstMention: isFirstMention,
-                  firstMentionStepId: isFirstMention ? step.id : null
-                };
-              }
-              return stepIngredient;
-            });
-            
-            return {
-              ...step,
-              content: updatedContent,
-              ingredients: updatedStepIngredients
-            };
-          }
-        }
-        return step;
-      })
-    }));
-  };
-
-  const getIngredientName = (ingredient) => {
-    if (ingredient.structured && ingredient.structured.ingredient) {
-      return ingredient.structured.ingredient.name;
-    }
-    if (ingredient.displayText) {
-      return ingredient.displayText;
-    }
-    if (ingredient.originalText) {
-      return ingredient.originalText;
-    }
-    return '';
-  };
-
-  const getIngredientDisplayText = (ingredient) => {
-    if (ingredient.structured && ingredient.structured.isStructured) {
-      const { quantity, unit, ingredient: baseIngredient, preparation } = ingredient.structured;
-      let display = '';
-      
-      if (quantity !== null) {
-        display += formatQuantity(quantity) + ' ';
-      }
-      if (unit) {
-        const unitName = quantity === 1 ? unit.name : unit.plural;
-        display += unitName + ' ';
-      }
-      if (baseIngredient) {
-        display += baseIngredient.name;
-      }
-      if (preparation) {
-        display += ', ' + preparation.name;
-      }
-      
-      return display.trim();
-    }
-    
-    return ingredient.displayText || ingredient.originalText || '';
-  };
-
-  const formatQuantity = (quantity) => {
-    // Common cooking fractions
-    const fractions = {
-      0.125: '1/8',
-      0.25: '1/4',
-      0.333: '1/3',
-      0.5: '1/2',
-      0.667: '2/3',
-      0.75: '3/4'
-    };
-    
-    const whole = Math.floor(quantity);
-    const decimal = quantity - whole;
-    
-    // Check if decimal part matches a common fraction
-    for (const [value, fraction] of Object.entries(fractions)) {
-      if (Math.abs(decimal - parseFloat(value)) < 0.02) {
-        return whole > 0 ? `${whole} ${fraction}` : fraction;
-      }
-    }
-    
-    // Return as decimal or whole number
-    return quantity % 1 === 0 ? quantity.toString() : quantity.toFixed(2);
-  };
-
-  const isIngredientMatch = (stepIngredient, ingredientName) => {
-    if (!stepIngredient || !ingredientName) return false;
-    
-    // Handle both string and object formats
-    let stepIngredientText = '';
-    if (typeof stepIngredient === 'string') {
-      stepIngredientText = stepIngredient;
-    } else if (typeof stepIngredient === 'object' && stepIngredient.text) {
-      stepIngredientText = stepIngredient.text;
-    } else {
-      return false;
-    }
-    
-    const stepIngredientLower = stepIngredientText.toLowerCase();
-    const ingredientNameLower = ingredientName.toLowerCase();
-    
-    // Direct match
-    if (stepIngredientLower.includes(ingredientNameLower) || ingredientNameLower.includes(stepIngredientLower)) {
-      return true;
-    }
-    
-    // Word-by-word matching for compound ingredients
-    const stepWords = stepIngredientLower.split(/\s+/);
-    const ingredientWords = ingredientNameLower.split(/\s+/);
-    
-    // Check if most ingredient words are present in step ingredient
-    const matchingWords = ingredientWords.filter(word => 
-      stepWords.some(stepWord => stepWord.includes(word) || word.includes(stepWord))
-    );
-    
-    return matchingWords.length >= Math.min(2, ingredientWords.length);
-  };
-
-  const handleIngredientDelete = (ingredient) => {
+  const handleAddPhoto = () => {
     Alert.alert(
-      'Delete Ingredient',
-      'Are you sure you want to delete this ingredient?',
+      'Add Photo',
+      'Choose how you would like to add a photo:',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            // Track ingredient removal
-            if (tracking.isInitialized) {
-              await tracking.trackIngredientRemoved(ingredient, {
-                recipeId: editedRecipe.id,
-                recipeName: editedRecipe.title,
-                reason: 'user_delete'
-              });
-            }
-            
-            setIngredients(prev => prev.filter(ing => ing.id !== ingredient.id));
-            
-            // Remove ingredient from steps
-            removeIngredientFromSteps(ingredient);
-          },
-        },
+        { text: 'Take Photo', onPress: () => console.log('Camera feature coming soon') },
+        { text: 'Choose from Library', onPress: () => console.log('Photo library feature coming soon') },
       ]
     );
   };
 
-  const handleAddIngredient = () => {
-    // Create a temporary new ingredient with default values
-    const newIngredient = {
-      id: `ingredient_new_${Date.now()}`,
-      originalText: '',
-      displayText: '',
-      structured: {
-        quantity: 1,
-        unit: null,
-        ingredient: { id: 'custom', name: '', category: 'custom' },
-        preparation: null,
-        isStructured: true
-      },
-      isNew: true
-    };
-
-    setTempNewIngredient(newIngredient);
-    setNewIngredientEditing(true);
+  const handleEditImage = () => {
+    Alert.alert(
+      'Edit Recipe Image',
+      'Choose how you want to add or change the recipe image',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Take Photo', onPress: () => console.log('Take photo feature coming soon') },
+        { text: 'Choose from Library', onPress: () => console.log('Photo library feature coming soon') },
+      ]
+    );
   };
 
-  const handleNewIngredientSave = async (ingredient, newText) => {
-    // Process the new ingredient just like editing an existing one
-    try {
-      const structured = await import('../services/ingredientServiceInstance.js')
-        .then(module => module.default.parseIngredientText(newText.trim()));
-      
-      // Extract the ingredient name from the edited text to preserve user input
-      const textParts = newText.trim().split(/\s+/);
-      let userIngredientName = '';
-      
-      let startIndex = 0;
-      if (textParts[0] && /^\d/.test(textParts[0])) {
-        startIndex = 1;
-      }
-      if (textParts[startIndex] && structured.unit && 
-          (textParts[startIndex].toLowerCase() === structured.unit.name?.toLowerCase() ||
-           textParts[startIndex].toLowerCase() === structured.unit.plural?.toLowerCase())) {
-        startIndex++;
-      }
-      
-      const remainingText = textParts.slice(startIndex).join(' ');
-      const commaIndex = remainingText.indexOf(',');
-      userIngredientName = commaIndex > -1 
-        ? remainingText.substring(0, commaIndex).trim()
-        : remainingText.trim();
-      
-      if (userIngredientName) {
-        structured.ingredient = {
-          id: 'custom',
-          name: userIngredientName,
-          category: 'custom'
-        };
-      }
-      
-      const finalIngredient = {
-        id: `ingredient_${Date.now()}`,
-        originalText: newText.trim(),
-        structured: structured,
-        displayText: structured.isStructured 
-          ? await import('../services/ingredientServiceInstance.js')
-              .then(module => module.default.formatIngredientForDisplay(structured))
-          : newText.trim()
-      };
-
-      // Add to ingredients list
-      setIngredients(prev => [...prev, finalIngredient]);
-
-      // Track ingredient addition
-      if (tracking.isInitialized) {
-        await tracking.trackIngredientAdded(finalIngredient, {
-          recipeId: editedRecipe.id,
-          recipeName: editedRecipe.title,
-          method: 'manual_add'
-        });
-      }
-    } catch (error) {
-      console.warn('Error parsing new ingredient:', error);
-    }
-
-    // Clear the temporary state
-    setNewIngredientEditing(false);
-    setTempNewIngredient(null);
-  };
-
-  const handleNewIngredientCancel = () => {
-    // User cancelled, don't add anything
-    setNewIngredientEditing(false);
-    setTempNewIngredient(null);
-  };
-
-  const removeIngredientFromSteps = (deletedIngredient) => {
-    const ingredientName = getIngredientName(deletedIngredient);
-    
-    setEditedRecipe(prev => ({
-      ...prev,
-      steps: prev.steps.map(step => {
-        if (step.ingredients && step.ingredients.length > 0) {
-          const filteredIngredients = step.ingredients.filter(stepIngredient => 
-            !isIngredientMatch(stepIngredient, ingredientName)
-          );
-          
-          return {
-            ...step,
-            ingredients: filteredIngredients
-          };
-        }
-        return step;
-      })
-    }));
-  };
-
-  /**
-   * Convert action verbs to present tense for step instructions
-   */
-  const convertToPresentTense = (action) => {
-    if (!action) return '';
-    
-    // Common cooking verb conversions
-    const verbMap = {
-      // Past tense to present tense
-      'chopped': 'chop',
-      'diced': 'dice',
-      'sliced': 'slice',
-      'minced': 'mince',
-      'grated': 'grate',
-      'shredded': 'shred',
-      'peeled': 'peel',
-      'crushed': 'crush',
-      'julienned': 'julienne',
-      'cubed': 'cube',
-      'halved': 'halve',
-      'quartered': 'quarter',
-      'trimmed': 'trim',
-      'cored': 'core',
-      'pitted': 'pit',
-      'seeded': 'seed',
-      'sifted': 'sift',
-      'drained': 'drain',
-      'rinsed': 'rinse',
-      'dried': 'dry',
-      'juiced': 'juice',
-      'cooked': 'cook',
-      'roasted': 'roast',
-      'grilled': 'grill',
-      'steamed': 'steam',
-      'boiled': 'boil',
-      'fried': 'fry',
-      'sautéed': 'sauté',
-      'baked': 'bake',
-      'broiled': 'broil',
-      'melted': 'melt',
-      'heated': 'heat',
-      'mixed': 'mix',
-      'stirred': 'stir',
-      'beaten': 'beat',
-      'whisked': 'whisk',
-      'folded': 'fold',
-      'combined': 'combine',
-      
-      // Gerund (-ing) to present tense
-      'chopping': 'chop',
-      'dicing': 'dice',
-      'slicing': 'slice',
-      'mincing': 'mince',
-      'grating': 'grate',
-      'shredding': 'shred',
-      'peeling': 'peel',
-      'crushing': 'crush',
-      'mixing': 'mix',
-      'stirring': 'stir',
-      'cooking': 'cook',
-      'heating': 'heat',
-      'beating': 'beat',
-      'whisking': 'whisk',
-      'folding': 'fold',
-      'combining': 'combine'
-    };
-    
-    // Split action into words and convert each verb
-    const words = action.toLowerCase().split(/\s+/);
-    const convertedWords = words.map(word => {
-      // Remove common punctuation
-      const cleanWord = word.replace(/[,.]$/, '');
-      const punctuation = word.match(/[,.]$/) ? word.slice(-1) : '';
-      
-      // Check if word is in our verb map
-      if (verbMap[cleanWord]) {
-        return verbMap[cleanWord] + punctuation;
-      }
-      
-      // Handle regular past tense (-ed ending)
-      if (cleanWord.endsWith('ed') && cleanWord.length > 3) {
-        let base = cleanWord.slice(0, -2);
-        // Handle doubled consonants (e.g., 'chopped' -> 'chop')
-        if (base.length > 2 && base[base.length - 1] === base[base.length - 2]) {
-          base = base.slice(0, -1);
-        }
-        return base + punctuation;
-      }
-      
-      // Return original word if no conversion needed
-      return word;
-    });
-    
-    return convertedWords.join(' ');
-  };
-
-  return (
-    <View style={styles.safeArea}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{editedRecipe.title}</Text>
-          <View style={styles.metaInfo}>
-            <Text style={styles.metaText}>
-              {editedRecipe.steps.length} steps
-            </Text>
-            {calculateTotalTime() > 0 && (
-              <Text style={styles.metaText}>
-                ~{calculateTotalTime()} minutes
-              </Text>
-            )}
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <View style={styles.headerTopRow}>
+        <TouchableOpacity 
+          onPress={handleCancel}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
+        </TouchableOpacity>
+        <View style={styles.titleSection}>
+          <TextInput
+            value={recipeEditor.title}
+            onChangeText={recipeEditor.setTitle}
+            style={styles.titleInput}
+            placeholder="Recipe name"
+            placeholderTextColor={colors.textSecondary}
+          />
+          <View style={styles.progressSection}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${parsingProgress}%` }]} />
+            </View>
+            <Text style={styles.progressText}>{parsingProgress}% parsed</Text>
           </View>
         </View>
-
-        <View style={styles.contentContainer}>
-          <View style={styles.ingredientsContainer}>
-                <Text style={styles.sectionTitle}>Ingredients</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Manage your recipe ingredients
-                </Text>
-                
-                {ingredients.map((ingredient) => (
-                  <StructuredIngredient
-                    key={ingredient.id}
-                    ingredient={ingredient}
-                    onEdit={handleIngredientEdit}
-                    onDelete={handleIngredientDelete}
-                    onCreateStep={handleCreateStepFromAction}
-                    showActions={true}
-                  />
-                ))}
-                
-                {newIngredientEditing && tempNewIngredient && (
-                  <StructuredIngredient
-                    key={tempNewIngredient.id}
-                    ingredient={tempNewIngredient}
-                    onEdit={handleNewIngredientSave}
-                    onDelete={(ingredient) => {
-                      // For new ingredients, just cancel without adding
-                      handleNewIngredientCancel();
-                    }}
-                    onCreateStep={() => {}}
-                    showActions={true}
-                    forceEditMode={true}
-                  />
-                )}
-                
-                {!newIngredientEditing && (
-                  <TouchableOpacity
-                    style={styles.addIngredientButton}
-                    onPress={handleAddIngredient}
-                  >
-                    <Ionicons name="add-circle" size={20} color={colors.primary} />
-                    <Text style={styles.addIngredientText}>Add Ingredient</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              
-              <View style={styles.stepsContainer}>
-                <Text style={styles.sectionTitle}>Recipe Steps</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Review and customize your recipe flow. Drag to reorder steps.
-                </Text>
-                
-                {editedRecipe.steps.map((step, index) => (
-                  <StepEditor
-                    key={step.id}
-                    step={step}
-                    index={index}
-                    ingredients={ingredients}
-                    onUpdate={handleStepUpdate}
-                    onDelete={handleDeleteStep}
-                    onAddAfter={handleAddStep}
-                    onReorder={handleStepReorder}
-                    isFirst={index === 0}
-                    isLast={index === editedRecipe.steps.length - 1}
-                  />
-                ))}
-              </View>
-        </View>
-
-        <View style={styles.buttonContainer}>
-          <Button
-            title="Cancel"
-            onPress={handleCancel}
-            variant="secondary"
-            style={styles.button}
-          />
-          <Button
-            title={isSaving ? "Saving..." : "Save Recipe"}
-            onPress={handleSave}
-            disabled={isSaving || editedRecipe.steps.length === 0}
-            style={styles.button}
-          />
-        </View>
-      </ScrollView>
+        <TouchableOpacity 
+          onPress={handleEditImage}
+          style={styles.editImageButton}
+        >
+          <Ionicons name="camera" size={20} color={colors.primary} />
+          <View style={styles.incompleteBadge}>
+            <Text style={styles.incompleteBadgeText}>?</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
     </View>
+  );
+
+
+  return (
+    <SafeAreaView style={commonStyles.container}>
+      <View style={styles.backgroundImage}>
+        <View style={styles.backgroundPattern} />
+      </View>
+      
+      <RecipeEditorHeader
+        title={recipeEditor.title}
+        onTitleChange={recipeEditor.setTitle}
+        servings={recipeEditor.servings}
+        parsingProgress={parsingProgress}
+        isSaving={isSaving}
+        onCancel={handleCancel}
+        onSave={handleSave}
+        onTestRecipe={() => {
+          const completeRecipe = {
+            ...recipeEditor.recipe,
+            title: recipeEditor.title,
+            servings: recipeEditor.servings,
+            ingredients: ingredientManager.ingredients,
+            steps: stepManager.steps
+          };
+          navigation.navigate('CookRecipe', { recipe: completeRecipe });
+        }}
+        editedRecipe={{
+          ...recipeEditor.recipe,
+          title: recipeEditor.title,
+          servings: recipeEditor.servings,
+          ingredients: ingredientManager.ingredients,
+          steps: stepManager.steps
+        }}
+      />
+      
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <IngredientsSection
+          ingredients={ingredientManager.ingredients}
+          onEditIngredient={ingredientManager.editIngredient}
+          onDeleteIngredient={ingredientManager.deleteIngredient}
+          onAddIngredient={ingredientManager.addIngredient}
+        />
+
+        <StepsSection
+          steps={stepManager.steps}
+          onStepUpdate={handleStepUpdate}
+          onStepReorder={handleStepReorder}
+          onDeleteStep={handleDeleteStep}
+          onAddStep={handleAddStep}
+        />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: `${colors.primary}05`,
+  },
+  backgroundPattern: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    opacity: 0.1,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
-  },
-  header: {
-    marginTop: 0,
-    marginBottom: 30,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: 8,
-  },
-  metaInfo: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  metaText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  sectionTitle: {
-    ...typography.h2,
-    color: colors.text,
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: 20,
-  },
-  contentContainer: {
-    marginBottom: 20,
-  },
-  ingredientsContainer: {
-    marginBottom: 30,
-  },
-  ingredientRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  ingredientText: {
-    ...typography.body,
-    color: colors.text,
-    flex: 1,
-    textAlign: 'left',
-  },
-  ingredientActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: colors.background,
-  },
-  stepsContainer: {
-    marginBottom: 20,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 0,
-    paddingVertical: 20,
-    paddingBottom: 30,
-    gap: 8,
-  },
-  button: {
-    flex: 1,
-  },
-  headerButton: {
-    padding: 8,
-  },
-  addIngredientButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
-  },
-  addIngredientText: {
-    ...typography.body,
-    color: colors.primary,
-    fontWeight: '500',
+    paddingBottom: 100,
   },
 });
+

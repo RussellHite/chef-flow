@@ -96,19 +96,6 @@ export default function StepEditor({
     }).filter(Boolean);
   };
 
-  const getStepTypeIcon = () => {
-    const content = (step.content || '').toLowerCase();
-    if (content.includes('prep') || content.includes('chop') || content.includes('slice')) {
-      return 'restaurant';
-    }
-    if (content.includes('heat') || content.includes('cook') || content.includes('bake')) {
-      return 'flame';
-    }
-    if (content.includes('mix') || content.includes('stir') || content.includes('combine')) {
-      return 'refresh';
-    }
-    return 'ellipse';
-  };
 
   const splitIntoSentences = (text) => {
     if (!text) return [];
@@ -233,48 +220,52 @@ export default function StepEditor({
 
   return (
     <View style={styles.container}>
-      <View style={styles.stepNumber}>
-        <Text style={styles.stepNumberText}>{index + 1}</Text>
+      <View style={styles.leftColumn}>
+        <View style={styles.topSection}>
+          <View style={styles.stepNumber}>
+            <Text style={styles.stepNumberText}>{index + 1}</Text>
+          </View>
+          
+          <View style={styles.actions}>
+            {!isEditing && (
+              <TouchableOpacity 
+                onPress={() => setIsEditing(true)}
+                style={styles.actionButton}
+              >
+                <Ionicons name="pencil" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        
+        {!isEditing && (
+          <View style={styles.reorderControls}>
+            {!isFirst && (
+              <TouchableOpacity 
+                onPress={() => onReorder(index, index - 1)}
+                style={styles.reorderButton}
+              >
+                <Ionicons name="chevron-up" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+            
+            {!isLast && (
+              <TouchableOpacity 
+                onPress={() => onReorder(index, index + 1)}
+                style={styles.reorderButton}
+              >
+                <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.stepInfo}>
-            <Ionicons 
-              name={getStepTypeIcon()} 
-              size={16} 
-              color={colors.primary} 
-              style={styles.stepIcon}
-            />
             {step.timing && (
               <Text style={styles.timing}>{step.timing}</Text>
-            )}
-          </View>
-          
-          <View style={styles.actions}>
-            {!isEditing && (
-              <>
-                <TouchableOpacity 
-                  onPress={() => setIsEditing(true)}
-                  style={styles.actionButton}
-                >
-                  <Ionicons name="pencil" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  onPress={() => onAddAfter(index)}
-                  style={styles.actionButton}
-                >
-                  <Ionicons name="add" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  onPress={() => onDelete(step.id)}
-                  style={styles.actionButton}
-                >
-                  <Ionicons name="trash" size={16} color={colors.error} />
-                </TouchableOpacity>
-              </>
             )}
           </View>
         </View>
@@ -305,6 +296,13 @@ export default function StepEditor({
                 style={[styles.editButton, styles.cancelButton]}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                onPress={() => onDelete(step.id)}
+                style={styles.deleteIconButton}
+              >
+                <Ionicons name="trash" size={16} color={colors.error} />
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -371,27 +369,6 @@ export default function StepEditor({
           </View>
         )}
 
-        {!isEditing && (
-          <View style={styles.reorderControls}>
-            {!isFirst && (
-              <TouchableOpacity 
-                onPress={() => onReorder(index, index - 1)}
-                style={styles.reorderButton}
-              >
-                <Ionicons name="chevron-up" size={16} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-            
-            {!isLast && (
-              <TouchableOpacity 
-                onPress={() => onReorder(index, index + 1)}
-                style={styles.reorderButton}
-              >
-                <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
       </View>
     </View>
   );
@@ -405,6 +382,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     ...commonStyles.shadow,
+    alignItems: 'flex-start',
+  },
+  leftColumn: {
+    alignItems: 'center',
+    marginRight: 12,
+    justifyContent: 'flex-start',
+  },
+  topSection: {
+    alignItems: 'center',
   },
   stepNumber: {
     width: 32,
@@ -413,7 +399,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginBottom: 8,
   },
   stepNumberText: {
     ...typography.body,
@@ -425,7 +411,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     marginBottom: 8,
   },
@@ -433,20 +419,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  stepIcon: {
-    marginRight: 8,
-  },
   timing: {
     ...typography.caption,
     color: colors.primary,
     fontWeight: '600',
   },
   actions: {
-    flexDirection: 'row',
-    gap: 8,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 4,
+    flexDirection: 'column',
+    gap: 4,
+    alignItems: 'center',
   },
   actionButton: {
     padding: 4,
+  },
+  deleteButton: {
+    marginBottom: 'auto',
+  },
+  deleteIconButton: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   displayContent: {
     marginBottom: 8,
@@ -495,6 +490,7 @@ const styles = StyleSheet.create({
   editActions: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
   },
   editButton: {
     flex: 1,
@@ -520,8 +516,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   reorderControls: {
-    flexDirection: 'row',
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 4,
+    flexDirection: 'column',
     gap: 4,
+    alignItems: 'center',
+    marginTop: 12,
   },
   reorderButton: {
     padding: 4,

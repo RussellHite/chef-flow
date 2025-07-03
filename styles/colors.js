@@ -1,13 +1,31 @@
 export const colors = {
-  primary: '#E91E63', // Pink
-  secondary: '#8B5A3C', // Rich brown
-  accent: '#D4A574', // Golden yellow
-  background: '#FFF8F0', // Cream white
-  surface: '#FFFFFF',
-  text: '#2C2C2C',
-  textSecondary: '#666666',
-  border: '#E0E0E0',
-  success: '#4CAF50',
-  warning: '#FF9800',
-  error: '#F44336',
+  // Cook RHYTHM Technical Color Palette
+  primary: '#1a365d', // Navy Deep
+  secondary: '#2d3748', // Charcoal Warm
+  accent: '#ed8936', // Orange Warm
+  background: '#f7fafc', // Gray Light
+  surface: '#ffffff', // White
+  text: '#2d3748', // Charcoal Warm
+  textSecondary: '#718096', // Muted foreground
+  border: '#e2e8f0', // Border
+  
+  // Status Colors
+  success: '#48bb78', // Green Success
+  warning: '#d69e2e', // Amber Warning
+  error: '#e53e3e', // Destructive
+  
+  // Brand Colors
+  navyDeep: '#1a365d',
+  charcoalWarm: '#2d3748',
+  greenFresh: '#38a169',
+  orangeWarm: '#ed8936',
+  grayLight: '#f7fafc',
+  greenSuccess: '#48bb78',
+  amberWarning: '#d69e2e',
+  
+  // Legacy compatibility (for gradual migration)
+  primary_old: '#E91E63',
+  secondary_old: '#8B5A3C',
+  accent_old: '#D4A574',
+  background_old: '#FFF8F0',
 };
