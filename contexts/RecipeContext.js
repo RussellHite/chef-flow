@@ -156,7 +156,26 @@ export const RecipeProvider = ({ children }) => {
       if (savedRecipes) {
         const parsedRecipes = JSON.parse(savedRecipes);
         console.log(`Loaded ${parsedRecipes.length} recipes from storage`);
-        setRecipes(parsedRecipes);
+        
+        // Validate and sanitize recipe data to prevent rendering errors
+        const sanitizedRecipes = parsedRecipes.map(recipe => ({
+          ...recipe,
+          title: typeof recipe.title === 'string' ? recipe.title : 'Untitled Recipe',
+          servings: typeof recipe.servings === 'string' ? recipe.servings : '1 serving',
+          totalTime: typeof recipe.totalTime === 'string' ? recipe.totalTime : 'Unknown',
+          ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients.map(ing => ({
+            ...ing,
+            originalText: typeof ing.originalText === 'string' ? ing.originalText : 'Unknown ingredient',
+            displayText: typeof ing.displayText === 'string' ? ing.displayText : ing.originalText || 'Unknown ingredient'
+          })) : [],
+          steps: Array.isArray(recipe.steps) ? recipe.steps.map(step => ({
+            ...step,
+            content: typeof step.content === 'string' ? step.content : 'Unknown step',
+            timing: typeof step.timing === 'string' ? step.timing : null
+          })) : []
+        }));
+        
+        setRecipes(sanitizedRecipes);
       } else {
         // First time - use sample recipe
         console.log('No saved recipes found, using sample recipe');
@@ -164,7 +183,9 @@ export const RecipeProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error loading recipes:', error);
-      // Fallback to sample recipe on error
+      // Clear corrupted data and use sample recipe
+      console.log('Clearing potentially corrupted recipe data');
+      await AsyncStorage.removeItem(RECIPES_STORAGE_KEY);
       setRecipes([sampleRecipe]);
     } finally {
       setIsLoading(false);

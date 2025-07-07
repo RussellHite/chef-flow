@@ -22,8 +22,8 @@ export default function AdminScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
   const adminStats = {
-    totalIngredients: 170,
-    parsingAccuracy: 92,
+    totalIngredients: 289,
+    parsingAccuracy: 94,
     activeUsers: 1,
     recipesProcessed: 47
   };
@@ -77,10 +77,9 @@ export default function AdminScreen({ navigation }) {
         { 
           icon: 'scale', 
           label: 'Units & Measurements', 
-          description: 'View and edit measurement units',
+          description: 'View 29 measurement units across 5 categories',
           badge: 'Admin',
-          action: () => console.log('Units page coming soon'),
-          incomplete: true
+          action: () => navigation.navigate('UnitsAndMeasures')
         },
       ]
     },

@@ -27,7 +27,7 @@ export const useIngredientManager = (initialIngredients = []) => {
         generateId('ingredient')
       );
 
-      setIngredients(prev => [...prev, newIngredient]);
+      setIngredients(prev => [newIngredient, ...prev]);
       return newIngredient;
     } catch (error) {
       console.error('Error adding ingredient:', error);
@@ -38,7 +38,7 @@ export const useIngredientManager = (initialIngredients = []) => {
   /**
    * Edit existing ingredient
    */
-  const editIngredient = useCallback(async (ingredient, newText) => {
+  const editIngredient = useCallback(async (ingredient, newTextOrUpdatedIngredient) => {
     if (!ingredient || !ingredient.id) {
       throw new Error('Valid ingredient with ID is required');
     }
@@ -46,16 +46,20 @@ export const useIngredientManager = (initialIngredients = []) => {
     try {
       let updatedIngredient;
 
-      if (ingredient.structured && newText) {
+      // Check if we received a full updated ingredient object (from structured editor)
+      if (typeof newTextOrUpdatedIngredient === 'object' && newTextOrUpdatedIngredient.id === ingredient.id) {
+        // Direct update with structured data - no re-parsing needed
+        updatedIngredient = newTextOrUpdatedIngredient;
+      } else if (ingredient.structured && newTextOrUpdatedIngredient) {
         // Re-parse with name preservation
         updatedIngredient = await IngredientParser.reparseIngredientWithNamePreservation(
-          newText,
+          newTextOrUpdatedIngredient,
           ingredient
         );
-      } else if (newText && newText.trim()) {
+      } else if (newTextOrUpdatedIngredient && newTextOrUpdatedIngredient.trim()) {
         // Simple text update with re-parsing
         updatedIngredient = await IngredientParser.reparseIngredientWithNamePreservation(
-          newText.trim(),
+          newTextOrUpdatedIngredient.trim(),
           ingredient
         );
       } else {
@@ -74,8 +78,12 @@ export const useIngredientManager = (initialIngredients = []) => {
       // Fallback to simple text update
       const fallbackIngredient = {
         ...ingredient,
-        originalText: newText?.trim() || ingredient.originalText,
-        displayText: newText?.trim() || ingredient.displayText
+        originalText: typeof newTextOrUpdatedIngredient === 'string' 
+          ? newTextOrUpdatedIngredient.trim() 
+          : ingredient.originalText,
+        displayText: typeof newTextOrUpdatedIngredient === 'string'
+          ? newTextOrUpdatedIngredient.trim()
+          : ingredient.displayText
       };
       
       setIngredients(prev => 
@@ -133,7 +141,21 @@ export const useIngredientManager = (initialIngredients = []) => {
   /**
    * Save new ingredient
    */
-  const saveNewIngredient = useCallback(async (ingredientText) => {
+  const saveNewIngredient = useCallback(async (ingredientTextOrObject) => {
+    // Handle both text strings and ingredient objects
+    let ingredientText;
+    
+    if (typeof ingredientTextOrObject === 'string') {
+      ingredientText = ingredientTextOrObject;
+    } else if (ingredientTextOrObject && typeof ingredientTextOrObject === 'object') {
+      // Extract text from ingredient object
+      ingredientText = ingredientTextOrObject.displayText || ingredientTextOrObject.originalText;
+    } else {
+      console.warn('Invalid ingredient data provided to saveNewIngredient:', ingredientTextOrObject);
+      cancelNewIngredient();
+      return null;
+    }
+
     if (!ingredientText || !ingredientText.trim()) {
       cancelNewIngredient();
       return null;

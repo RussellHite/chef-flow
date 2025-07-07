@@ -62,6 +62,15 @@ class IngredientService {
   }
 
   /**
+   * Batch parse multiple ingredients with cross-referencing for improved accuracy
+   * @param {Array<string>} ingredientTexts - Array of raw ingredient texts
+   * @returns {Promise<Array>} Array of structured ingredient objects
+   */
+  async batchParseIngredients(ingredientTexts) {
+    return this.dataSource.batchParseIngredients(ingredientTexts);
+  }
+
+  /**
    * Format a structured ingredient into display text
    * @param {Object} ingredient - Structured ingredient object
    * @returns {string} Formatted ingredient text

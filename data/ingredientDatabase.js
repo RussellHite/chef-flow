@@ -50,7 +50,32 @@ export const UNITS = {
   // Container sizes
   can: { id: 'can', nameKey: 'unit.can', name: 'can', plural: 'cans', type: 'container' },
   package: { id: 'package', nameKey: 'unit.package', name: 'package', plural: 'packages', type: 'container' },
-  box: { id: 'box', nameKey: 'unit.box', name: 'box', plural: 'boxes', type: 'container' }
+  box: { id: 'box', nameKey: 'unit.box', name: 'box', plural: 'boxes', type: 'container' },
+  jar: { id: 'jar', nameKey: 'unit.jar', name: 'jar', plural: 'jars', type: 'container' },
+  bottle: { id: 'bottle', nameKey: 'unit.bottle', name: 'bottle', plural: 'bottles', type: 'container' },
+  bag: { id: 'bag', nameKey: 'unit.bag', name: 'bag', plural: 'bags', type: 'container' },
+  
+  // Volume - Additional
+  pint: { id: 'pint', nameKey: 'unit.pint', name: 'pint', plural: 'pints', type: 'volume' },
+  quart: { id: 'quart', nameKey: 'unit.quart', name: 'quart', plural: 'quarts', type: 'volume' },
+  gallon: { id: 'gallon', nameKey: 'unit.gallon', name: 'gallon', plural: 'gallons', type: 'volume' },
+  
+  // Count - Additional
+  dozen: { id: 'dozen', nameKey: 'unit.dozen', name: 'dozen', plural: 'dozen', type: 'count' },
+  bunch: { id: 'bunch', nameKey: 'unit.bunch', name: 'bunch', plural: 'bunches', type: 'count' },
+  head: { id: 'head', nameKey: 'unit.head', name: 'head', plural: 'heads', type: 'count' },
+  stalk: { id: 'stalk', nameKey: 'unit.stalk', name: 'stalk', plural: 'stalks', type: 'count' },
+  rib: { id: 'rib', nameKey: 'unit.rib', name: 'rib', plural: 'ribs', type: 'count' },
+  strip: { id: 'strip', nameKey: 'unit.strip', name: 'strip', plural: 'strips', type: 'count' },
+  slice: { id: 'slice', nameKey: 'unit.slice', name: 'slice', plural: 'slices', type: 'count' },
+  
+  // Weight - Additional  
+  ton: { id: 'ton', nameKey: 'unit.ton', name: 'ton', plural: 'tons', type: 'weight' },
+  
+  // Special units
+  dash: { id: 'dash', nameKey: 'unit.dash', name: 'dash', plural: 'dashes', type: 'count' },
+  drop: { id: 'drop', nameKey: 'unit.drop', name: 'drop', plural: 'drops', type: 'count' },
+  splash: { id: 'splash', nameKey: 'unit.splash', name: 'splash', plural: 'splashes', type: 'count' }
 };
 
 // Preparation Methods
@@ -90,7 +115,36 @@ export const PREPARATION_METHODS = {
   halves: { id: 'halves', nameKey: 'prep.halves', name: 'halves', requiresStep: false, category: 'form' },
   quarters: { id: 'quarters', nameKey: 'prep.quarters', name: 'quarters', requiresStep: false, category: 'form' },
   pieces: { id: 'pieces', nameKey: 'prep.pieces', name: 'pieces', requiresStep: false, category: 'form' },
-  slices: { id: 'slices', nameKey: 'prep.slices', name: 'slices', requiresStep: false, category: 'form' }
+  slices: { id: 'slices', nameKey: 'prep.slices', name: 'slices', requiresStep: false, category: 'form' },
+  chunks: { id: 'chunks', nameKey: 'prep.chunks', name: 'chunks', requiresStep: false, category: 'form' },
+  strips: { id: 'strips', nameKey: 'prep.strips', name: 'strips', requiresStep: false, category: 'form' },
+  wedges: { id: 'wedges', nameKey: 'prep.wedges', name: 'wedges', requiresStep: false, category: 'form' },
+  
+  // Additional cutting methods
+  diced_fine: { id: 'diced_fine', nameKey: 'prep.diced_fine', name: 'finely diced', requiresStep: true, category: 'cutting' },
+  diced_coarse: { id: 'diced_coarse', nameKey: 'prep.diced_coarse', name: 'coarsely diced', requiresStep: true, category: 'cutting' },
+  chopped_fine: { id: 'chopped_fine', nameKey: 'prep.chopped_fine', name: 'finely chopped', requiresStep: true, category: 'cutting' },
+  chopped_coarse: { id: 'chopped_coarse', nameKey: 'prep.chopped_coarse', name: 'coarsely chopped', requiresStep: true, category: 'cutting' },
+  thinly_sliced: { id: 'thinly_sliced', nameKey: 'prep.thinly_sliced', name: 'thinly sliced', requiresStep: true, category: 'cutting' },
+  
+  // Additional processing methods
+  mashed: { id: 'mashed', nameKey: 'prep.mashed', name: 'mashed', requiresStep: true, category: 'processing' },
+  pureed: { id: 'pureed', nameKey: 'prep.pureed', name: 'pureed', requiresStep: true, category: 'processing' },
+  blended: { id: 'blended', nameKey: 'prep.blended', name: 'blended', requiresStep: true, category: 'processing' },
+  ground: { id: 'ground', nameKey: 'prep.ground', name: 'ground', requiresStep: true, category: 'processing' },
+  zested: { id: 'zested', nameKey: 'prep.zested', name: 'zested', requiresStep: true, category: 'processing' },
+  
+  // Additional treatment methods
+  blanched: { id: 'blanched', nameKey: 'prep.blanched', name: 'blanched', requiresStep: true, category: 'treatment' },
+  steamed: { id: 'steamed', nameKey: 'prep.steamed', name: 'steamed', requiresStep: true, category: 'treatment' },
+  roasted: { id: 'roasted', nameKey: 'prep.roasted', name: 'roasted', requiresStep: true, category: 'treatment' },
+  toasted: { id: 'toasted', nameKey: 'prep.toasted', name: 'toasted', requiresStep: true, category: 'treatment' },
+  
+  // Additional state descriptors
+  room_temperature: { id: 'room_temperature', nameKey: 'prep.room_temperature', name: 'room temperature', requiresStep: false, category: 'state' },
+  chilled: { id: 'chilled', nameKey: 'prep.chilled', name: 'chilled', requiresStep: false, category: 'state' },
+  softened: { id: 'softened', nameKey: 'prep.softened', name: 'softened', requiresStep: false, category: 'state' },
+  melted: { id: 'melted', nameKey: 'prep.melted', name: 'melted', requiresStep: true, category: 'treatment' }
 };
 
 // Base Ingredients Database
@@ -404,6 +458,105 @@ export const INGREDIENTS = {
     searchTerms: ['Brussels sprouts', 'brussels sprouts', 'brussel sprouts']
   },
 
+  asparagus: {
+    id: 'asparagus',
+    nameKey: 'ingredient.asparagus',
+    name: 'asparagus',
+    plural: 'asparagus',
+    category: 'vegetables',
+    commonUnits: ['bunch', 'lb', 'piece', 'spear'],
+    commonPreparations: ['trimmed', 'chopped', 'grilled', 'roasted'],
+    searchTerms: ['asparagus', 'asparagus spears']
+  },
+
+  artichoke: {
+    id: 'artichoke',
+    nameKey: 'ingredient.artichoke',
+    name: 'artichoke',
+    plural: 'artichokes',
+    category: 'vegetables',
+    commonUnits: ['piece', 'whole', 'heart', 'can'],
+    commonPreparations: ['hearts', 'quartered', 'marinated'],
+    searchTerms: ['artichoke', 'artichoke hearts']
+  },
+
+  beetroot: {
+    id: 'beetroot',
+    nameKey: 'ingredient.beetroot',
+    name: 'beetroot',
+    plural: 'beetroots',
+    category: 'vegetables',
+    commonUnits: ['piece', 'bunch', 'cup'],
+    commonPreparations: ['roasted', 'boiled', 'grated', 'pickled'],
+    searchTerms: ['beetroot', 'beet', 'beets']
+  },
+
+  cauliflower: {
+    id: 'cauliflower',
+    nameKey: 'ingredient.cauliflower',
+    name: 'cauliflower',
+    plural: 'cauliflower',
+    category: 'vegetables',
+    commonUnits: ['head', 'cup', 'floret'],
+    commonPreparations: ['florets', 'riced', 'mashed', 'roasted'],
+    searchTerms: ['cauliflower', 'cauliflower florets']
+  },
+
+  corn: {
+    id: 'corn',
+    nameKey: 'ingredient.corn',
+    name: 'corn',
+    plural: 'corn',
+    category: 'vegetables',
+    commonUnits: ['cup', 'can', 'ear', 'kernel'],
+    commonPreparations: ['kernels', 'on the cob', 'frozen'],
+    searchTerms: ['corn', 'corn kernels', 'sweet corn']
+  },
+
+  green_beans: {
+    id: 'green_beans',
+    nameKey: 'ingredient.green_beans',
+    name: 'green beans',
+    plural: 'green beans',
+    category: 'vegetables',
+    commonUnits: ['lb', 'cup', 'can'],
+    commonPreparations: ['trimmed', 'blanched', 'steamed'],
+    searchTerms: ['green beans', 'string beans', 'snap beans']
+  },
+
+  okra: {
+    id: 'okra',
+    nameKey: 'ingredient.okra',
+    name: 'okra',
+    plural: 'okra',
+    category: 'vegetables',
+    commonUnits: ['lb', 'cup', 'piece'],
+    commonPreparations: ['sliced', 'whole', 'fried'],
+    searchTerms: ['okra', 'ladies fingers']
+  },
+
+  parsnip: {
+    id: 'parsnip',
+    nameKey: 'ingredient.parsnip',
+    name: 'parsnip',
+    plural: 'parsnips',
+    category: 'vegetables',
+    commonUnits: ['piece', 'lb', 'cup'],
+    commonPreparations: ['peeled', 'chopped', 'roasted'],
+    searchTerms: ['parsnip', 'parsnips']
+  },
+
+  turnip: {
+    id: 'turnip',
+    nameKey: 'ingredient.turnip',
+    name: 'turnip',
+    plural: 'turnips',
+    category: 'vegetables',
+    commonUnits: ['piece', 'cup', 'lb'],
+    commonPreparations: ['peeled', 'diced', 'mashed'],
+    searchTerms: ['turnip', 'turnips']
+  },
+
   // Proteins
   chicken: {
     id: 'chicken',
@@ -689,6 +842,83 @@ export const INGREDIENTS = {
     commonUnits: ['can', 'cup', 'lb'],
     commonPreparations: ['canned', 'dried', 'cooked', 'drained', 'rinsed'],
     searchTerms: ['kidney beans', 'red kidney beans', 'canned kidney beans']
+  },
+
+  chickpeas: {
+    id: 'chickpeas',
+    nameKey: 'ingredient.chickpeas',
+    name: 'chickpeas',
+    plural: 'chickpeas',
+    category: 'proteins',
+    commonUnits: ['can', 'cup', 'lb'],
+    commonPreparations: ['canned', 'dried', 'cooked', 'drained', 'rinsed'],
+    searchTerms: ['chickpeas', 'garbanzo beans', 'canned chickpeas']
+  },
+
+  lentils: {
+    id: 'lentils',
+    nameKey: 'ingredient.lentils',
+    name: 'lentils',
+    plural: 'lentils',
+    category: 'proteins',
+    commonUnits: ['cup', 'lb', 'can'],
+    commonPreparations: ['red', 'green', 'brown', 'cooked'],
+    searchTerms: ['lentils', 'red lentils', 'green lentils', 'brown lentils']
+  },
+
+  duck: {
+    id: 'duck',
+    nameKey: 'ingredient.duck',
+    name: 'duck',
+    plural: 'duck',
+    category: 'proteins',
+    commonUnits: ['lb', 'piece', 'breast', 'leg'],
+    commonPreparations: ['breast', 'leg', 'confit', 'roasted'],
+    searchTerms: ['duck', 'duck breast', 'duck leg']
+  },
+
+  lamb: {
+    id: 'lamb',
+    nameKey: 'ingredient.lamb',
+    name: 'lamb',
+    plural: 'lamb',
+    category: 'proteins',
+    commonUnits: ['lb', 'chop', 'leg', 'shoulder'],
+    commonPreparations: ['chops', 'leg', 'shoulder', 'ground'],
+    searchTerms: ['lamb', 'lamb chops', 'leg of lamb', 'ground lamb']
+  },
+
+  crab: {
+    id: 'crab',
+    nameKey: 'ingredient.crab',
+    name: 'crab',
+    plural: 'crab',
+    category: 'proteins',
+    commonUnits: ['lb', 'can', 'cup'],
+    commonPreparations: ['meat', 'legs', 'claws', 'canned'],
+    searchTerms: ['crab', 'crab meat', 'crab legs', 'canned crab']
+  },
+
+  lobster: {
+    id: 'lobster',
+    nameKey: 'ingredient.lobster',
+    name: 'lobster',
+    plural: 'lobster',
+    category: 'proteins',
+    commonUnits: ['lb', 'piece', 'tail'],
+    commonPreparations: ['tail', 'whole', 'meat', 'cooked'],
+    searchTerms: ['lobster', 'lobster tail', 'lobster meat']
+  },
+
+  scallops: {
+    id: 'scallops',
+    nameKey: 'ingredient.scallops',
+    name: 'scallops',
+    plural: 'scallops',
+    category: 'proteins',
+    commonUnits: ['lb', 'piece', 'cup'],
+    commonPreparations: ['sea', 'bay', 'seared', 'raw'],
+    searchTerms: ['scallops', 'sea scallops', 'bay scallops']
   },
 
   // Dairy
@@ -1474,6 +1704,83 @@ export const INGREDIENTS = {
     commonPreparations: ['dried blend'],
     searchTerms: ['herbs de Provence', 'herbes de provence', 'provence herbs']
   },
+
+  sage: {
+    id: 'sage',
+    nameKey: 'ingredient.sage',
+    name: 'sage',
+    plural: 'sage',
+    category: 'spices',
+    commonUnits: ['tsp', 'tbsp', 'leaf'],
+    commonPreparations: ['fresh', 'dried', 'ground'],
+    searchTerms: ['sage', 'fresh sage', 'dried sage']
+  },
+
+  mint: {
+    id: 'mint',
+    nameKey: 'ingredient.mint',
+    name: 'mint',
+    plural: 'mint',
+    category: 'spices',
+    commonUnits: ['cup', 'leaf', 'sprig'],
+    commonPreparations: ['fresh', 'chopped', 'whole leaves'],
+    searchTerms: ['mint', 'fresh mint', 'mint leaves']
+  },
+
+  dill: {
+    id: 'dill',
+    nameKey: 'ingredient.dill',
+    name: 'dill',
+    plural: 'dill',
+    category: 'spices',
+    commonUnits: ['tsp', 'tbsp', 'sprig'],
+    commonPreparations: ['fresh', 'dried', 'chopped'],
+    searchTerms: ['dill', 'fresh dill', 'dried dill', 'dill weed']
+  },
+
+  tarragon: {
+    id: 'tarragon',
+    nameKey: 'ingredient.tarragon',
+    name: 'tarragon',
+    plural: 'tarragon',
+    category: 'spices',
+    commonUnits: ['tsp', 'tbsp', 'sprig'],
+    commonPreparations: ['fresh', 'dried', 'chopped'],
+    searchTerms: ['tarragon', 'fresh tarragon', 'dried tarragon']
+  },
+
+  chives: {
+    id: 'chives',
+    nameKey: 'ingredient.chives',
+    name: 'chives',
+    plural: 'chives',
+    category: 'spices',
+    commonUnits: ['tbsp', 'cup', 'bunch'],
+    commonPreparations: ['fresh', 'chopped', 'snipped'],
+    searchTerms: ['chives', 'fresh chives', 'chopped chives']
+  },
+
+  cardamom: {
+    id: 'cardamom',
+    nameKey: 'ingredient.cardamom',
+    name: 'cardamom',
+    plural: 'cardamom',
+    category: 'spices',
+    commonUnits: ['tsp', 'pod', 'ground'],
+    commonPreparations: ['ground', 'pods', 'seeds'],
+    searchTerms: ['cardamom', 'cardamom pods', 'ground cardamom']
+  },
+
+  star_anise: {
+    id: 'star_anise',
+    nameKey: 'ingredient.star_anise',
+    name: 'star anise',
+    plural: 'star anise',
+    category: 'spices',
+    commonUnits: ['piece', 'tsp'],
+    commonPreparations: ['whole', 'ground'],
+    searchTerms: ['star anise', 'whole star anise']
+  },
   
   // Oils
   olive_oil: {
@@ -1684,6 +1991,83 @@ export const INGREDIENTS = {
     commonUnits: ['cup', 'bag'],
     commonPreparations: ['fresh', 'dried', 'frozen'],
     searchTerms: ['cranberry', 'cranberries', 'fresh cranberries', 'dried cranberries']
+  },
+
+  pear: {
+    id: 'pear',
+    nameKey: 'ingredient.pear',
+    name: 'pear',
+    plural: 'pears',
+    category: 'fruits',
+    commonUnits: ['piece', 'cup', 'can'],
+    commonPreparations: ['peeled', 'cored', 'sliced', 'diced'],
+    searchTerms: ['pear', 'pears', 'bartlett pear', 'anjou pear']
+  },
+
+  peach: {
+    id: 'peach',
+    nameKey: 'ingredient.peach',
+    name: 'peach',
+    plural: 'peaches',
+    category: 'fruits',
+    commonUnits: ['piece', 'cup', 'can'],
+    commonPreparations: ['peeled', 'pitted', 'sliced', 'diced'],
+    searchTerms: ['peach', 'peaches', 'fresh peaches', 'canned peaches']
+  },
+
+  plum: {
+    id: 'plum',
+    nameKey: 'ingredient.plum',
+    name: 'plum',
+    plural: 'plums',
+    category: 'fruits',
+    commonUnits: ['piece', 'cup'],
+    commonPreparations: ['pitted', 'sliced', 'halved'],
+    searchTerms: ['plum', 'plums', 'fresh plums']
+  },
+
+  cherry: {
+    id: 'cherry',
+    nameKey: 'ingredient.cherry',
+    name: 'cherry',
+    plural: 'cherries',
+    category: 'fruits',
+    commonUnits: ['cup', 'lb', 'can'],
+    commonPreparations: ['pitted', 'fresh', 'dried', 'frozen'],
+    searchTerms: ['cherry', 'cherries', 'sweet cherries', 'tart cherries']
+  },
+
+  pineapple: {
+    id: 'pineapple',
+    nameKey: 'ingredient.pineapple',
+    name: 'pineapple',
+    plural: 'pineapples',
+    category: 'fruits',
+    commonUnits: ['cup', 'piece', 'can', 'ring'],
+    commonPreparations: ['chunks', 'rings', 'crushed', 'fresh'],
+    searchTerms: ['pineapple', 'fresh pineapple', 'canned pineapple']
+  },
+
+  mango: {
+    id: 'mango',
+    nameKey: 'ingredient.mango',
+    name: 'mango',
+    plural: 'mangoes',
+    category: 'fruits',
+    commonUnits: ['piece', 'cup'],
+    commonPreparations: ['peeled', 'diced', 'sliced', 'chunks'],
+    searchTerms: ['mango', 'mangoes', 'fresh mango']
+  },
+
+  kiwi: {
+    id: 'kiwi',
+    nameKey: 'ingredient.kiwi',
+    name: 'kiwi',
+    plural: 'kiwis',
+    category: 'fruits',
+    commonUnits: ['piece', 'cup'],
+    commonPreparations: ['peeled', 'sliced', 'diced'],
+    searchTerms: ['kiwi', 'kiwi fruit', 'kiwis']
   },
   
   // Nuts & Seeds

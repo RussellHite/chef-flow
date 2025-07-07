@@ -9,6 +9,9 @@ import NotificationService from './services/NotificationService';
 import ErrorBoundary from './components/ErrorBoundary';
 import { debugLog, errorLog, logAssetLoad } from './utils/devTools';
 
+// Import debug utilities to help track down the event object error
+// import './utils/debugUtils'; // Temporarily disabled
+
 export default function App() {
   useEffect(() => {
     // Log app startup in development

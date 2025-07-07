@@ -169,6 +169,7 @@ export const useStepManager = (initialSteps = [], options = {}) => {
    * Synchronize steps with ingredient changes
    */
   const syncWithIngredients = useCallback((ingredients) => {
+    console.log('🔄 syncWithIngredients called');
     if (!ingredients || ingredients.length === 0) return;
 
     const updatedSteps = RecipeContentSyncService.updateAllStepsContent(
@@ -177,8 +178,11 @@ export const useStepManager = (initialSteps = [], options = {}) => {
       originalStepContent
     );
 
+    console.log('🔄 Setting updated steps...');
     setSteps(updatedSteps);
+    console.log('🔄 Notifying change...');
     notifyChange(updatedSteps);
+    console.log('🔄 syncWithIngredients complete');
   }, [steps, originalStepContent, notifyChange]);
 
   /**

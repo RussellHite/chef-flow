@@ -7,9 +7,11 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+// import DebugText from '../DebugText'; // Removed for stability
 import { colors } from '../../styles/colors';
 import { typography } from '../../styles/typography';
 import { formatQuantity, formatUnit } from '../../utils/ingredientFormatting';
+import { ConfidenceIndicator } from './ConfidenceIndicator';
 
 export const StructuredIngredientDisplay = ({ 
   ingredient, 
@@ -42,7 +44,13 @@ export const StructuredIngredientDisplay = ({
             </TouchableOpacity>
             {showMenu && (
               <View style={styles.menu}>
-                <TouchableOpacity onPress={() => { onEdit && onEdit(ingredient); setShowMenu(false); }} style={styles.menuItem}>
+                <TouchableOpacity onPress={() => { 
+                  if (onEdit) {
+                    console.log('Calling onEdit with ingredient:', ingredient?.id);
+                    onEdit(ingredient); 
+                  }
+                  setShowMenu(false); 
+                }} style={styles.menuItem}>
                   <Ionicons name="pencil" size={16} color={colors.primary} />
                   <Text style={styles.menuText}>Edit</Text>
                 </TouchableOpacity>
@@ -77,6 +85,7 @@ export const StructuredIngredientDisplay = ({
   const unit = structured.unit;
   const ingredientName = structured.ingredient?.name;
   const preparation = structured.preparation?.name;
+  const confidence = structured.confidence || {};
 
   return (
     <View style={[styles.ingredientRow, compact && styles.compactRow]}>
@@ -86,31 +95,43 @@ export const StructuredIngredientDisplay = ({
           <View style={styles.mainIngredientLine}>
             {/* Quantity */}
             {quantity !== null && quantity !== undefined && (
-              <Text style={styles.quantityText}>
-                {formatQuantity(quantity)}
-              </Text>
+              <View style={styles.componentWithBadge}>
+                <ConfidenceIndicator confidence={confidence.quantity} />
+                <Text style={styles.quantityText}>
+                  {String(formatQuantity(quantity) || '')}
+                </Text>
+              </View>
             )}
             
             {/* Unit */}
-            {unit && unit.value !== 'n/a' && (
-              <Text style={styles.unitText}>
-                {formatUnit(unit.value, quantity)}
-              </Text>
+            {unit && (unit.value || unit.id) !== 'n/a' && (
+              <View style={styles.componentWithBadge}>
+                <ConfidenceIndicator confidence={confidence.unit} />
+                <Text style={styles.unitText}>
+                  {String(formatUnit(unit.value || unit.id, quantity) || '')}
+                </Text>
+              </View>
             )}
             
             {/* Ingredient Name */}
             {ingredientName && (
-              <Text style={styles.ingredientName}>
-                {ingredientName}
-              </Text>
+              <View style={styles.componentWithBadge}>
+                <ConfidenceIndicator confidence={confidence.ingredient} />
+                <Text style={styles.ingredientName}>
+                  {String(ingredientName || '')}
+                </Text>
+              </View>
             )}
           </View>
           
           {/* Preparation on new line */}
           {preparation && (
-            <Text style={styles.preparationText}>
-              {preparation}
-            </Text>
+            <View style={styles.preparationWithBadge}>
+              <ConfidenceIndicator confidence={confidence.preparation} />
+              <Text style={styles.preparationText}>
+                {String(preparation || '')}
+              </Text>
+            </View>
           )}
         </View>
       </View>
@@ -182,18 +203,27 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     flexWrap: 'wrap',
   },
+  componentWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  preparationWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    marginLeft: 0,
+  },
   quantityText: {
     ...typography.body,
     color: colors.text,
     fontWeight: 'bold',
     fontSize: 14,
-    marginRight: 8,
   },
   unitText: {
     ...typography.body,
     color: colors.text,
     fontWeight: '600',
-    marginRight: 8,
     fontSize: 14,
   },
   ingredientName: {

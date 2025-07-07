@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
+import { UnitSelector } from './UnitSelector';
 import { colors } from '../../styles/colors';
 import { typography } from '../../styles/typography';
 import { 
@@ -33,7 +33,11 @@ export const StructuredIngredientEditor = ({
     if (structured && structured.isStructured) {
       const quantity = structured.quantity;
       setEditQuantity(typeof quantity === 'number' ? quantity.toString() : (quantity || ''));
-      setEditUnit(structured.unit?.value || 'n/a');
+      
+      // Handle both unit formats (database format with 'id' and UI format with 'value')
+      const unitValue = structured.unit?.value || structured.unit?.id || structured.unit?.name || 'n/a';
+      setEditUnit(unitValue);
+      
       setEditIngredient(structured.ingredient?.name || displayText || originalText || '');
       setEditPreparation(structured.preparation?.name || '');
     } else {
@@ -48,7 +52,6 @@ export const StructuredIngredientEditor = ({
     const validation = validateIngredientData(editQuantity, editUnit, editIngredient);
     
     if (!validation.isValid) {
-      // Could show validation errors here
       console.warn('Validation errors:', validation.errors);
       return;
     }
@@ -56,10 +59,25 @@ export const StructuredIngredientEditor = ({
     const unitData = MEASUREMENT_UNITS.find(u => u.value === editUnit);
     const parsedQuantity = editQuantity ? parseFloat(editQuantity) || 1 : 1;
 
+    // Create unit object with both value/id for compatibility with both systems
+    const unitObject = unitData ? {
+      id: unitData.value,     // Database format
+      value: unitData.value,  // UI format 
+      name: unitData.label,
+      label: unitData.label,
+      plural: unitData.plural
+    } : {
+      id: editUnit,
+      value: editUnit,
+      name: editUnit,
+      label: editUnit,
+      plural: editUnit
+    };
+
     const updatedStructured = {
       isStructured: true,
       quantity: parsedQuantity,
-      unit: unitData || { value: editUnit, label: editUnit, plural: editUnit },
+      unit: unitObject,
       ingredient: {
         id: structured?.ingredient?.id || 'custom',
         name: editIngredient.trim(),
@@ -68,13 +86,30 @@ export const StructuredIngredientEditor = ({
       preparation: editPreparation.trim() ? { name: editPreparation.trim() } : null
     };
 
+    // Ensure all parts are strings to prevent React child errors
+    const quantityStr = String(formatQuantity(parsedQuantity) || '');
+    const unitStr = String(unitData?.label || editUnit || '');
+    const ingredientStr = String(editIngredient || '');
+    const prepStr = editPreparation ? String(editPreparation) : '';
+    
+    const displayText = `${quantityStr} ${unitStr} ${ingredientStr}${prepStr ? ', ' + prepStr : ''}`.trim();
+    
     const updatedIngredient = {
       ...ingredient,
       structured: updatedStructured,
-      displayText: `${formatQuantity(parsedQuantity)} ${unitData?.label || editUnit} ${editIngredient}${editPreparation ? ', ' + editPreparation : ''}`
+      displayText: displayText,
+      originalText: displayText // Ensure originalText is also a string
     };
 
-    onSave && onSave(updatedIngredient);
+    try {
+      if (typeof onSave === 'function') {
+        onSave(updatedIngredient);
+      } else {
+        console.error('onSave is not a function:', typeof onSave);
+      }
+    } catch (error) {
+      console.error('Error in StructuredIngredientEditor onSave:', error);
+    }
   };
 
   const handleCancel = () => {
@@ -97,25 +132,20 @@ export const StructuredIngredientEditor = ({
           />
         </View>
 
-        {/* Unit Picker */}
+        {/* Unit Selector */}
         <View style={styles.unitInput}>
           <Text style={styles.inputLabel}>Unit</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={editUnit}
-              onValueChange={setEditUnit}
-              style={styles.picker}
-              itemStyle={styles.pickerItem}
-            >
-              {MEASUREMENT_UNITS.map((unit) => (
-                <Picker.Item 
-                  key={unit.value} 
-                  label={unit.label} 
-                  value={unit.value} 
-                />
-              ))}
-            </Picker>
-          </View>
+          <UnitSelector
+            value={editUnit}
+            onValueChange={(value) => {
+              // Ensure we only set string values
+              if (typeof value === 'string') {
+                setEditUnit(value);
+              } else {
+                console.warn('Non-string value passed to setEditUnit:', value);
+              }
+            }}
+          />
         </View>
       </View>
 
@@ -150,7 +180,7 @@ export const StructuredIngredientEditor = ({
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+        <TouchableOpacity onPress={() => handleSave()} style={styles.saveButton}>
           <Ionicons name="checkmark" size={16} color={colors.surface} />
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
@@ -209,21 +239,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     color: colors.text,
-    fontSize: 14,
-  },
-  pickerContainer: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  picker: {
-    height: Platform.OS === 'ios' ? 120 : 40,
-    color: colors.text,
-  },
-  pickerItem: {
-    ...typography.body,
     fontSize: 14,
   },
   editActions: {

@@ -18,8 +18,29 @@ export const MEASUREMENT_UNITS = [
   { value: 'liter', label: 'liter', plural: 'liters' },
   { value: 'piece', label: 'piece', plural: 'pieces' },
   { value: 'clove', label: 'clove', plural: 'cloves' },
+  { value: 'sprig', label: 'sprig', plural: 'sprigs' },
+  { value: 'pinch', label: 'pinch', plural: 'pinches' },
+  { value: 'small', label: 'small', plural: 'small' },
+  { value: 'medium', label: 'medium', plural: 'medium' },
+  { value: 'large', label: 'large', plural: 'large' },
   { value: 'can', label: 'can', plural: 'cans' },
-  { value: 'package', label: 'package', plural: 'packages' }
+  { value: 'package', label: 'package', plural: 'packages' },
+  { value: 'jar', label: 'jar', plural: 'jars' },
+  { value: 'bottle', label: 'bottle', plural: 'bottles' },
+  { value: 'bag', label: 'bag', plural: 'bags' },
+  { value: 'pint', label: 'pint', plural: 'pints' },
+  { value: 'quart', label: 'quart', plural: 'quarts' },
+  { value: 'gallon', label: 'gallon', plural: 'gallons' },
+  { value: 'dozen', label: 'dozen', plural: 'dozen' },
+  { value: 'bunch', label: 'bunch', plural: 'bunches' },
+  { value: 'head', label: 'head', plural: 'heads' },
+  { value: 'stalk', label: 'stalk', plural: 'stalks' },
+  { value: 'rib', label: 'rib', plural: 'ribs' },
+  { value: 'strip', label: 'strip', plural: 'strips' },
+  { value: 'slice', label: 'slice', plural: 'slices' },
+  { value: 'dash', label: 'dash', plural: 'dashes' },
+  { value: 'drop', label: 'drop', plural: 'drops' },
+  { value: 'splash', label: 'splash', plural: 'splashes' }
 ];
 
 /**
@@ -55,11 +76,24 @@ export const formatQuantity = (quantity) => {
 
 /**
  * Get unit display text (singular/plural based on quantity)
+ * Handles both UI format (value) and database format (id)
  */
 export const formatUnit = (unitValue, quantity = 1) => {
   if (!unitValue || unitValue === 'n/a') return '';
   
-  const unitData = MEASUREMENT_UNITS.find(u => u.value === unitValue);
+  // Try to find by value first (UI format), then by matching value to any field
+  let unitData = MEASUREMENT_UNITS.find(u => u.value === unitValue);
+  
+  // If not found by value, try matching against label or common variations
+  if (!unitData) {
+    unitData = MEASUREMENT_UNITS.find(u => 
+      u.value === unitValue || 
+      u.label === unitValue || 
+      u.plural === unitValue
+    );
+  }
+  
+  // If still not found, return the value as-is
   if (!unitData) return unitValue;
   
   const numQuantity = typeof quantity === 'string' ? parseQuantity(quantity) : quantity;
@@ -89,8 +123,8 @@ export const getIngredientDisplayText = (structured) => {
     display += formatQuantity(structured.quantity) + ' ';
   }
   
-  if (structured.unit && structured.unit.value !== 'n/a') {
-    display += formatUnit(structured.unit.value, structured.quantity) + ' ';
+  if (structured.unit && (structured.unit.value || structured.unit.id) !== 'n/a') {
+    display += formatUnit(structured.unit.value || structured.unit.id || structured.unit.name, structured.quantity) + ' ';
   }
   
   if (structured.ingredient?.name) {

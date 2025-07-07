@@ -273,9 +273,21 @@ export default function EditRecipeScreen({ route, navigation }) {
   };
 
 
-  const handleIngredientEdit = async (ingredient, newText) => {
+  const handleIngredientEdit = async (ingredient, newTextOrUpdatedIngredient) => {
+    console.log('🔍 handleIngredientEdit called with:', {
+      ingredientId: ingredient?.id,
+      newTextOrUpdatedIngredientType: typeof newTextOrUpdatedIngredient,
+      isEvent: newTextOrUpdatedIngredient && newTextOrUpdatedIngredient.nativeEvent ? true : false
+    });
+    
+    // Check if we received an event object
+    if (newTextOrUpdatedIngredient && newTextOrUpdatedIngredient.nativeEvent) {
+      console.error('❌ Event object passed to handleIngredientEdit!');
+      return;
+    }
+    
     try {
-      const updatedIngredient = await ingredientManager.editIngredient(ingredient, newText);
+      const updatedIngredient = await ingredientManager.editIngredient(ingredient, newTextOrUpdatedIngredient);
       
       // Update recipe with new ingredients and sync steps
       recipeEditor.updateIngredients(ingredientManager.ingredients);
@@ -525,7 +537,7 @@ export default function EditRecipeScreen({ route, navigation }) {
         <View style={styles.titleSection}>
           <TextInput
             value={recipeEditor.title}
-            onChangeText={recipeEditor.setTitle}
+            onChangeText={recipeEditor.updateTitle}
             style={styles.titleInput}
             placeholder="Recipe name"
             placeholderTextColor={colors.textSecondary}
@@ -559,7 +571,7 @@ export default function EditRecipeScreen({ route, navigation }) {
       
       <RecipeEditorHeader
         title={recipeEditor.title}
-        onTitleChange={recipeEditor.setTitle}
+        onTitleChange={recipeEditor.updateTitle}
         servings={recipeEditor.servings}
         parsingProgress={parsingProgress}
         isSaving={isSaving}
@@ -591,9 +603,55 @@ export default function EditRecipeScreen({ route, navigation }) {
       >
         <IngredientsSection
           ingredients={ingredientManager.ingredients}
-          onEditIngredient={ingredientManager.editIngredient}
+          recognizedCount={recognizedCount}
+          needsReviewCount={needsReviewCount}
+          newIngredientEditing={ingredientManager.newIngredientEditing}
+          tempNewIngredient={ingredientManager.tempNewIngredient}
+          onEditIngredient={handleIngredientEdit}
           onDeleteIngredient={ingredientManager.deleteIngredient}
-          onAddIngredient={ingredientManager.addIngredient}
+          onAddIngredient={ingredientManager.startNewIngredientEdit}
+          onCreateStepFromAction={(action, ingredient) => {
+            // Handle creating step from ingredient action
+            console.log('Create step from action:', action, ingredient);
+          }}
+          onNewIngredientSave={async (updatedIngredient, displayText) => {
+            // Check if we received an event object instead of ingredient data
+            if (updatedIngredient && updatedIngredient.nativeEvent) {
+              console.error('❌ Event object passed to onNewIngredientSave!');
+              return;
+            }
+            
+            try {
+              // Handle both updated ingredient objects and direct text
+              let textToSave;
+              
+              if (typeof updatedIngredient === 'string') {
+                textToSave = updatedIngredient;
+              } else if (updatedIngredient && typeof updatedIngredient === 'object') {
+                // For structured ingredient objects, use displayText or originalText
+                textToSave = displayText || updatedIngredient.displayText || updatedIngredient.originalText;
+              } else {
+                console.warn('Invalid ingredient data received:', updatedIngredient);
+                return;
+              }
+
+              if (!textToSave || !textToSave.trim()) {
+                console.warn('No text to save for ingredient');
+                return;
+              }
+
+              const savedIngredient = await ingredientManager.saveNewIngredient(textToSave.trim());
+              
+              if (savedIngredient) {
+                recipeEditor.updateIngredients(ingredientManager.ingredients);
+                stepManager.syncWithIngredients(ingredientManager.ingredients);
+              }
+            } catch (error) {
+              console.error('Error saving new ingredient:', error);
+              Alert.alert('Error', 'Failed to save ingredient. Please try again.');
+            }
+          }}
+          onNewIngredientCancel={ingredientManager.cancelNewIngredient}
         />
 
         <StepsSection

@@ -42,6 +42,18 @@ export default function StructuredIngredient({
   };
 
   const handleEditSave = (updatedIngredient) => {
+    // Check if we got an event object instead of ingredient data
+    if (updatedIngredient && updatedIngredient.nativeEvent) {
+      console.error('❌ Event object passed to handleEditSave!');
+      return;
+    }
+    
+    // Ensure we have valid ingredient data
+    if (!updatedIngredient || typeof updatedIngredient !== 'object' || !updatedIngredient.displayText) {
+      console.error('❌ Invalid ingredient data passed to handleEditSave:', updatedIngredient);
+      return;
+    }
+    
     onEdit?.(updatedIngredient, updatedIngredient.displayText);
     setIsEditing(false);
   };

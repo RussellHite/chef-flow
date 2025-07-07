@@ -10,6 +10,7 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import RecipesScreen from '../screens/RecipesScreen';
 import AdminScreen from '../screens/AdminScreen';
 import IngredientListScreen from '../screens/IngredientListScreen';
+import UnitsAndMeasuresScreen from '../screens/UnitsAndMeasuresScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddRecipeScreen from '../screens/AddRecipeScreen';
 import EditRecipeScreen from '../screens/EditRecipeScreen';
@@ -78,6 +79,11 @@ function AdminStack() {
       <Stack.Screen 
         name="IngredientList" 
         component={IngredientListScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="UnitsAndMeasures" 
+        component={UnitsAndMeasuresScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

@@ -42,6 +42,12 @@ export class RecipeContentSyncService {
       let updatedContent = originalStepContent?.get(step.id) || step.content;
       const updatedStepIngredients = [];
       
+      // Ensure content is always a string
+      if (typeof updatedContent !== 'string') {
+        console.error('❌ Non-string content detected in step:', step.id, typeof updatedContent);
+        updatedContent = String(updatedContent || 'New step');
+      }
+      
       if (step.ingredients && step.ingredients.length > 0) {
         step.ingredients.forEach(stepIngredient => {
           const matchedIngredient = stepIngredientMapping.get(stepIngredient.id || stepIngredient.text);
@@ -50,6 +56,16 @@ export class RecipeContentSyncService {
             const ingredientName = getIngredientName(matchedIngredient);
             const displayText = getIngredientDisplayText(matchedIngredient);
             
+            // Ensure these are strings
+            if (typeof ingredientName !== 'string' || typeof displayText !== 'string') {
+              console.error('❌ Non-string ingredient data:', {
+                ingredientName: typeof ingredientName,
+                displayText: typeof displayText,
+                matchedIngredient: matchedIngredient
+              });
+              return; // Skip this ingredient to avoid corrupting data
+            }
+            
             // Check if this is the first mention
             const isFirstMention = !usedInSteps.has(ingredientName);
             if (isFirstMention) {
@@ -57,33 +73,58 @@ export class RecipeContentSyncService {
             }
 
             // Update content based on ingredient structure
-            updatedContent = this.updateStepContentForIngredient(
+            const newContent = this.updateStepContentForIngredient(
               updatedContent,
               matchedIngredient,
               stepIngredient,
               isFirstMention
             );
+            
+            // Ensure the returned content is a string
+            if (typeof newContent === 'string') {
+              updatedContent = newContent;
+            } else {
+              console.error('❌ updateStepContentForIngredient returned non-string:', typeof newContent);
+            }
 
-            // Update step ingredient entry
+            // Update step ingredient entry - ensure all values are strings
             updatedStepIngredients.push({
-              id: matchedIngredient.id,
-              text: isFirstMention ? displayText : ingredientName,
-              fullText: displayText,
+              id: String(matchedIngredient.id || ''),
+              text: String(isFirstMention ? displayText : ingredientName),
+              fullText: String(displayText),
               isFirstMention: isFirstMention,
-              firstMentionStepId: isFirstMention ? step.id : null
+              firstMentionStepId: isFirstMention ? String(step.id || '') : null
             });
           } else {
-            // Keep original step ingredient if no match found
-            updatedStepIngredients.push(stepIngredient);
+            // Keep original step ingredient if no match found, but ensure it's valid
+            if (stepIngredient && typeof stepIngredient === 'object') {
+              updatedStepIngredients.push({
+                ...stepIngredient,
+                id: String(stepIngredient.id || ''),
+                text: String(stepIngredient.text || ''),
+                fullText: String(stepIngredient.fullText || stepIngredient.text || '')
+              });
+            }
           }
         });
       }
 
-      return {
+      // Final validation of step data
+      const validatedStep = {
         ...step,
-        content: updatedContent,
+        content: String(updatedContent || 'New step'),
         ingredients: updatedStepIngredients
       };
+
+      // Double-check all string fields
+      Object.keys(validatedStep).forEach(key => {
+        if (typeof validatedStep[key] === 'object' && validatedStep[key] && validatedStep[key].nativeEvent) {
+          console.error('❌ Event object detected in step field:', key);
+          validatedStep[key] = String(validatedStep[key]);
+        }
+      });
+
+      return validatedStep;
     });
 
     console.log('✅ Step content update completed');

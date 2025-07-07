@@ -194,13 +194,21 @@ export class IngredientParser {
     const { generateId } = await import('../utils/recipeUtils');
     
     const structured = await this.parseIngredientText(text.trim());
-    const displayText = await this.formatIngredientForDisplay({ structured });
+    
+    // Create temporary ingredient object for formatting
+    const tempIngredient = {
+      structured: structured,
+      originalText: text.trim(),
+      displayText: text.trim()
+    };
+    
+    const displayText = await this.formatIngredientForDisplay(tempIngredient);
 
     return {
       id: id || generateId('ingredient'),
       originalText: text.trim(),
       structured: structured,
-      displayText: displayText || text.trim(),
+      displayText: typeof displayText === 'string' ? displayText : text.trim(),
       isNew: true
     };
   }

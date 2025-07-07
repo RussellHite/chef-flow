@@ -30,10 +30,25 @@ export const extractName = (ingredientText) => {
  * @returns {string} Ingredient name
  */
 export const getIngredientName = (ingredient) => {
-  if (ingredient.structured?.ingredient?.name) {
-    return ingredient.structured.ingredient.name;
+  if (!ingredient || typeof ingredient !== 'object') {
+    console.warn('getIngredientName: Invalid ingredient object');
+    return 'ingredient';
   }
-  return ingredient.originalText || ingredient.displayText || 'ingredient';
+  
+  let name;
+  if (ingredient.structured?.ingredient?.name) {
+    name = ingredient.structured.ingredient.name;
+  } else {
+    name = ingredient.originalText || ingredient.displayText || 'ingredient';
+  }
+  
+  // Ensure we always return a string
+  if (typeof name !== 'string') {
+    console.error('getIngredientName: Non-string name detected:', typeof name, name);
+    return String(name || 'ingredient');
+  }
+  
+  return name;
 };
 
 /**
@@ -42,7 +57,20 @@ export const getIngredientName = (ingredient) => {
  * @returns {string} Display text
  */
 export const getIngredientDisplayText = (ingredient) => {
-  return ingredient.displayText || ingredient.originalText || 'ingredient';
+  if (!ingredient || typeof ingredient !== 'object') {
+    console.warn('getIngredientDisplayText: Invalid ingredient object');
+    return 'ingredient';
+  }
+  
+  let displayText = ingredient.displayText || ingredient.originalText || 'ingredient';
+  
+  // Ensure we always return a string
+  if (typeof displayText !== 'string') {
+    console.error('getIngredientDisplayText: Non-string display text detected:', typeof displayText, displayText);
+    return String(displayText || 'ingredient');
+  }
+  
+  return displayText;
 };
 
 /**

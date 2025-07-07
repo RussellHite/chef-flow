@@ -23,7 +23,11 @@ export default function AddRecipeScreen({ navigation }) {
           ingredients: recipeCreation.ingredients,
           steps: recipeCreation.steps
         }}
-        onFieldChange={(field) => (value) => recipeCreation.updateField(field, value)}
+        onFieldChange={(field) => (value) => {
+          // Ensure we only pass the string value, not the event object
+          const textValue = typeof value === 'string' ? value : '';
+          recipeCreation.updateField(field, textValue);
+        }}
         onSubmit={recipeCreation.processRecipe}
         onCancel={recipeCreation.handleCancel}
         isProcessing={recipeCreation.isProcessing}

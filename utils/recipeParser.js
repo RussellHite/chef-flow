@@ -38,6 +38,7 @@ function escapeRegExp(string) {
 
 /**
  * Process ingredients text into structured ingredient objects
+ * Uses intelligent batch parsing for improved accuracy
  * @param {string} ingredientsText - Raw ingredients text from input field
  * @returns {Promise<Array>} Array of structured ingredient objects
  */
@@ -52,31 +53,59 @@ export async function processIngredients(ingredientsText) {
     .map(line => line.trim())
     .filter(line => line.length > 0);
   
-  const structuredIngredients = [];
-  
-  for (const line of lines) {
-    try {
-      const structured = await ingredientService.parseIngredientText(line);
-      structuredIngredients.push({
-        id: `ingredient_${Date.now()}_${Math.random()}`,
+  if (lines.length === 0) {
+    return [];
+  }
+
+  try {
+    // Use batch parsing for improved accuracy when processing multiple ingredients
+    const batchParsedStructures = await ingredientService.batchParseIngredients(lines);
+    
+    const structuredIngredients = lines.map((line, index) => {
+      const structured = batchParsedStructures[index];
+      
+      return {
+        id: `ingredient_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
         originalText: line,
         structured: structured,
-        displayText: structured.isStructured 
+        displayText: structured && structured.isStructured 
           ? ingredientService.formatIngredientForDisplay(structured)
           : line
-      });
-    } catch (error) {
-      // Fallback to original text if parsing fails
-      structuredIngredients.push({
-        id: `ingredient_${Date.now()}_${Math.random()}`,
-        originalText: line,
-        structured: null,
-        displayText: line
-      });
+      };
+    });
+    
+    return structuredIngredients;
+    
+  } catch (error) {
+    console.warn('Batch parsing failed, falling back to individual parsing:', error);
+    
+    // Fallback to individual parsing if batch parsing fails
+    const structuredIngredients = [];
+    
+    for (const line of lines) {
+      try {
+        const structured = await ingredientService.parseIngredientText(line);
+        structuredIngredients.push({
+          id: `ingredient_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
+          originalText: line,
+          structured: structured,
+          displayText: structured.isStructured 
+            ? ingredientService.formatIngredientForDisplay(structured)
+            : line
+        });
+      } catch (error) {
+        // Fallback to original text if parsing fails
+        structuredIngredients.push({
+          id: `ingredient_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
+          originalText: line,
+          structured: null,
+          displayText: line
+        });
+      }
     }
+    
+    return structuredIngredients;
   }
-  
-  return structuredIngredients;
 }
 
 /**

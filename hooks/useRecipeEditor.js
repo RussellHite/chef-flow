@@ -39,10 +39,21 @@ export const useRecipeEditor = (initialRecipe, isNew = false, options = {}) => {
    * Update recipe title
    */
   const updateTitle = useCallback((newTitle) => {
-    setTitle(newTitle);
+    // Ensure we only set string values for title
+    const safeTitle = typeof newTitle === 'string' ? newTitle : '';
+    
+    // Log if we receive non-string values
+    if (typeof newTitle !== 'string') {
+      console.warn('⚠️ Non-string value passed to updateTitle:', {
+        type: typeof newTitle,
+        isEvent: newTitle && newTitle.nativeEvent ? true : false
+      });
+    }
+    
+    setTitle(safeTitle);
     setRecipe(prev => ({
       ...prev,
-      title: newTitle
+      title: safeTitle
     }));
   }, []);
 

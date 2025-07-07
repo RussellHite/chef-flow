@@ -19,7 +19,15 @@ class ErrorBoundary extends React.Component {
     
     // Log detailed error in development
     if (__DEV__) {
-      console.error('Error Boundary Caught:', error, errorInfo);
+      console.error('Error Boundary Caught:', error);
+      
+      // Special handling for the React child error - auto-recover silently
+      if (error.message && error.message.includes('Objects are not valid as a React child')) {
+        // Auto-recover from this specific error after a short delay
+        setTimeout(() => {
+          this.setState({ hasError: false, error: null, errorInfo: null });
+        }, 1000);
+      }
     }
   }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -66,7 +66,7 @@ export default function WelcomeScreen({ navigation, route }) {
     });
   };
 
-  const renderHeader = () => (
+  const renderHeader = useCallback(() => (
     <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
       <View style={styles.headerContent}>
         {/* App Logo & Branding */}
@@ -104,9 +104,9 @@ export default function WelcomeScreen({ navigation, route }) {
         </View>
       </View>
     </View>
-  );
+  ), [insets.top, currentRecipe, isOnline]);
 
-  const renderQuickActions = () => (
+  const renderQuickActions = useCallback(() => (
     <View style={styles.quickActionsSection}>
       <View style={styles.quickActionCard}>
         <View style={styles.quickActionIcon}>
@@ -123,16 +123,39 @@ export default function WelcomeScreen({ navigation, route }) {
         />
       </View>
     </View>
-  );
+  ), [handleAddRecipe]);
 
-  const renderRecipeCard = ({ item: recipe }) => {
-    const needsReview = Math.random() > 0.7; // Simulate some recipes needing review
-    const lastCooked = ['2 days ago', '1 week ago', '3 days ago', 'Never'][Math.floor(Math.random() * 4)];
+  // Memoize recipe metadata to avoid random generation on each render
+  const recipeMetadata = useMemo(() => {
+    const metadata = new Map();
+    recipes.forEach(recipe => {
+      // Use recipe ID for consistent random seed
+      const seed = recipe.id ? recipe.id.charCodeAt(0) : 0;
+      metadata.set(recipe.id, {
+        needsReview: (seed % 10) > 7, // Deterministic "random" based on recipe ID
+        lastCooked: ['2 days ago', '1 week ago', '3 days ago', 'Never'][seed % 4]
+      });
+    });
+    return metadata;
+  }, [recipes]);
+
+  const handleEditRecipeCallback = useCallback((recipe) => {
+    handleEditRecipe(recipe);
+  }, []);
+
+  const handleCookRecipeCallback = useCallback((recipe) => (e) => {
+    e.stopPropagation();
+    handleCookRecipe(recipe);
+  }, []);
+
+  const renderRecipeCard = useCallback(({ item: recipe }) => {
+    const metadata = recipeMetadata.get(recipe.id) || { needsReview: false, lastCooked: 'Never' };
+    const { needsReview, lastCooked } = metadata;
     
     return (
       <TouchableOpacity 
         style={styles.recipeCard}
-        onPress={() => handleEditRecipe(recipe)}
+        onPress={() => handleEditRecipeCallback(recipe)}
       >
         {/* Recipe Image Placeholder */}
         <View style={styles.recipeImageContainer}>
@@ -171,10 +194,7 @@ export default function WelcomeScreen({ navigation, route }) {
             <Text style={styles.lastCookedText}>Last cooked: {lastCooked}</Text>
             {!needsReview && (
               <TouchableOpacity 
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleCookRecipe(recipe);
-                }}
+                onPress={handleCookRecipeCallback(recipe)}
                 style={styles.cookButton}
               >
                 <Text style={styles.cookButtonText}>Cook</Text>
@@ -184,9 +204,9 @@ export default function WelcomeScreen({ navigation, route }) {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [recipeMetadata, handleEditRecipeCallback, handleCookRecipeCallback]);
 
-  const renderEmptyState = () => (
+  const renderEmptyState = useCallback(() => (
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       {renderHeader()}
       
@@ -204,9 +224,13 @@ export default function WelcomeScreen({ navigation, route }) {
         </View>
       </View>
     </ScrollView>
-  );
+  ), [renderHeader, renderQuickActions]);
 
-  const renderWithRecipes = () => (
+  const navigateToRecipes = useCallback(() => {
+    navigation.navigate('Recipes');
+  }, [navigation]);
+
+  const renderWithRecipes = useCallback(() => (
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       {renderHeader()}
       
@@ -219,7 +243,7 @@ export default function WelcomeScreen({ navigation, route }) {
               <Ionicons name="restaurant" size={20} color={colors.primary} /> Recent Recipes
             </Text>
             <TouchableOpacity 
-              onPress={() => navigation.navigate('Recipes')}
+              onPress={navigateToRecipes}
               style={styles.viewAllButton}
             >
               <Text style={styles.viewAllButtonText}>View All</Text>
@@ -228,15 +252,15 @@ export default function WelcomeScreen({ navigation, route }) {
           
           <View style={styles.recipeGrid}>
             {recipes.map((recipe) => (
-              <View key={recipe.id}>
+              <React.Fragment key={recipe.id}>
                 {renderRecipeCard({ item: recipe })}
-              </View>
+              </React.Fragment>
             ))}
           </View>
         </View>
       </View>
     </ScrollView>
-  );
+  ), [renderHeader, renderQuickActions, navigateToRecipes, recipes, renderRecipeCard]);
 
   return (
     <View style={[commonStyles.container]}>

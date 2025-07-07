@@ -7,10 +7,18 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
+// import DebugText from './DebugText'; // Removed - causing React child errors
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../styles/colors';
 import { typography } from '../styles/typography';
 import { commonStyles } from '../styles/common';
+import { 
+  splitIntoSentences, 
+  detectTiming, 
+  updateTimingInSentence,
+  clampTimeValue,
+  convertMinutesToDisplayFormat
+} from '../utils/timingUtils';
 
 export default function StepEditor({ 
   step, 
@@ -84,9 +92,19 @@ export default function StepEditor({
         
         if (!displayText) return null;
         
+        // Ensure displayText is always a string to prevent React child errors
+        const safeDisplayText = typeof displayText === 'string' ? displayText : String(displayText || 'Unknown ingredient');
+        
+        // Additional safety check for event objects
+        if (safeDisplayText && typeof safeDisplayText === 'object' && safeDisplayText.nativeEvent) {
+          console.error('❌ Event object detected in ingredient display text!');
+          console.error('IngredientRef:', ingredientRef);
+          return null;
+        }
+        
         return (
           <Text key={index} style={styles.ingredient}>
-            • {displayText}
+            • {String(safeDisplayText)}
           </Text>
         );
       } catch (error) {
@@ -97,98 +115,16 @@ export default function StepEditor({
   };
 
 
-  const splitIntoSentences = (text) => {
-    if (!text) return [];
-    
-    // Split by periods, exclamation marks, or question marks, but keep the punctuation
-    const sentences = text.split(/([.!?]+)/)
-      .reduce((acc, part, index, array) => {
-        if (index % 2 === 0) {
-          // This is the sentence content
-          const punctuation = array[index + 1] || '';
-          const sentence = (part + punctuation).trim();
-          if (sentence.length > 0) {
-            acc.push(sentence);
-          }
-        }
-        return acc;
-      }, []);
-    
-    // If no sentences were found (no punctuation), return the original text
-    return sentences.length > 0 ? sentences : [text];
-  };
 
-  const detectTiming = (sentence) => {
-    if (!sentence) return null;
-    
-    // Timing patterns to match
-    const timingPatterns = [
-      // "cook for 20 minutes", "bake for 1 hour", "simmer for 5-10 minutes"
-      /(\w+\s+for\s+)(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i,
-      // "cook 20 minutes", "bake 30 mins"
-      /(\w+\s+)(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i,
-      // "for 15 minutes", "for 1 hour"
-      /(for\s+)(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i,
-      // "15 minutes", "1 hour" (standalone)
-      /^(\s*)(\d+(?:-\d+)?)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i
-    ];
-    
-    for (const pattern of timingPatterns) {
-      const match = sentence.match(pattern);
-      if (match) {
-        const timeValue = match[2];
-        const timeUnit = match[3];
-        const beforeTime = match[1];
-        
-        // Convert to minutes for consistency
-        let timeInMinutes;
-        if (timeValue.includes('-')) {
-          // Handle ranges like "5-10"
-          const [min, max] = timeValue.split('-').map(Number);
-          timeInMinutes = Math.round((min + max) / 2);
-        } else {
-          timeInMinutes = parseInt(timeValue);
-        }
-        
-        // Convert hours to minutes
-        if (timeUnit.toLowerCase().startsWith('hour') || timeUnit.toLowerCase().startsWith('hr')) {
-          timeInMinutes *= 60;
-        }
-        
-        return {
-          originalTime: timeValue,
-          timeInMinutes,
-          timeUnit,
-          beforeTime,
-          fullMatch: match[0],
-          sentence
-        };
-      }
-    }
-    
-    return null;
-  };
 
-  const updateTimingInSentence = (sentenceIndex, newTimeInMinutes) => {
+  const updateTimingInSentenceLocal = (sentenceIndex, newTimeInMinutes) => {
     const sentences = splitIntoSentences(step.content);
     const sentence = sentences[sentenceIndex];
-    const timingInfo = detectTiming(sentence);
     
-    if (!timingInfo) return;
+    // Use the utility function to update timing
+    const newSentence = updateTimingInSentence(sentence, newTimeInMinutes);
     
-    // Convert minutes back to appropriate unit
-    let displayTime, displayUnit;
-    if (newTimeInMinutes >= 60 && newTimeInMinutes % 60 === 0) {
-      displayTime = newTimeInMinutes / 60;
-      displayUnit = displayTime === 1 ? 'hour' : 'hours';
-    } else {
-      displayTime = newTimeInMinutes;
-      displayUnit = displayTime === 1 ? 'minute' : 'minutes';
-    }
-    
-    // Replace the timing in the sentence
-    const newSentence = sentence.replace(timingInfo.fullMatch, 
-      `${timingInfo.beforeTime}${displayTime} ${displayUnit}`);
+    if (newSentence === sentence) return; // No timing found
     
     // Update the sentences array
     const newSentences = [...sentences];
@@ -213,9 +149,9 @@ export default function StepEditor({
     if (!timingInfo) return;
     
     const currentTime = timingControls[sentenceIndex] || timingInfo.timeInMinutes;
-    const newTime = Math.max(1, currentTime + delta);
+    const newTime = clampTimeValue(currentTime + delta, 1, 480); // 1 min to 8 hours
     
-    updateTimingInSentence(sentenceIndex, newTime);
+    updateTimingInSentenceLocal(sentenceIndex, newTime);
   };
 
   return (
@@ -340,7 +276,7 @@ export default function StepEditor({
                           value={currentTime?.toString() || ''}
                           onChangeText={(value) => {
                             const numValue = parseInt(value) || 1;
-                            updateTimingInSentence(sentenceIndex, numValue);
+                            updateTimingInSentenceLocal(sentenceIndex, numValue);
                           }}
                           keyboardType="numeric"
                           placeholder="0"

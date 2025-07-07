@@ -47,6 +47,24 @@ export const IngredientsSection = ({
       </View>
       
       <View style={styles.cardContent}>
+        {/* New ingredient editor appears first, right after the header */}
+        {newIngredientEditing && tempNewIngredient && (
+          <View style={styles.newIngredientSection}>
+            <StructuredIngredient
+              key={tempNewIngredient.id}
+              ingredient={tempNewIngredient}
+              onEdit={onNewIngredientSave}
+              onDelete={onNewIngredientCancel}
+              onCreateStep={() => {}}
+              showActions={true}
+              forceEditMode={true}
+              compact={false}
+            />
+            {ingredients.length > 0 && <View style={styles.separator} />}
+          </View>
+        )}
+        
+        {/* Existing ingredients list */}
         {ingredients.map((ingredient, index) => (
           <View key={ingredient.id} style={[
             styles.ingredientItem,
@@ -62,22 +80,6 @@ export const IngredientsSection = ({
             />
           </View>
         ))}
-        
-        {newIngredientEditing && tempNewIngredient && (
-          <View>
-            {ingredients.length > 0 && <View style={styles.separator} />}
-            <StructuredIngredient
-              key={tempNewIngredient.id}
-              ingredient={tempNewIngredient}
-              onEdit={onNewIngredientSave}
-              onDelete={onNewIngredientCancel}
-              onCreateStep={() => {}}
-              showActions={true}
-              forceEditMode={true}
-              compact={false}
-            />
-          </View>
-        )}
       </View>
     </View>
   );
@@ -142,6 +144,9 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  newIngredientSection: {
+    marginBottom: 8,
   },
   separator: {
     height: 1,

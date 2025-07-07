@@ -32,6 +32,28 @@ npm run ios
 npm run android
 ```
 
+**IMPORTANT**: Development server must be executed on the Windows host machine, NOT through Claude Code.
+
+### Development Server Process (Windows Only)
+```bash
+# Start the development server
+npm start
+```
+
+### Why Windows-only:
+- Expo development server requires stable network connection for device connectivity
+- Metro bundler needs consistent file system access
+- Real-time code reloading works best with host machine file watching
+- User needs to scan QR code or connect devices manually
+
+### Development Steps for User:
+1. Run `npm start` in Windows terminal/command prompt
+2. Use Expo Go app to scan QR code for testing
+3. Monitor console output for any errors or warnings
+4. Use `r` to reload, `d` to open developer menu
+
+**Claude Code should NEVER attempt to run `npm start` or development server commands directly.**
+
 ## Testing
 - Test framework: Not yet configured
 - To run tests: Please specify test command for future reference
@@ -85,6 +107,88 @@ eas build --platform android --profile production
 - Ingredients support complex parsing including parenthetical sizes and preparation methods
 - Admin interface uses wrapping category filters and reduced padding for consistency
 - Recipe parser handles "divided" ingredients and distinguishes between forms vs prep actions
+
+## Server Migration Strategy (Supabase + Railway)
+
+### Current Architecture Assessment ✅
+
+The current codebase is **exceptionally well-designed** for migration to Supabase + Railway:
+
+#### 🏗️ **Perfect Abstraction Layer**
+- **IngredientService**: Clean interface that's data source agnostic
+- **DataSource Pattern**: `EmbeddedIngredientDataSource` can be swapped for `SupabaseIngredientDataSource`
+- **Dependency Injection**: Service uses constructor injection for easy swapping
+
+#### 🔄 **Migration Strategy**
+
+##### Phase 1: Create Supabase Data Source
+- Create `SupabaseIngredientDataSource.js` implementing same interface as `EmbeddedIngredientDataSource`
+- Implement vector similarity search using Supabase's pgvector extension
+- Keep all business logic (parsing, similarity) in existing services
+
+##### Phase 2: Hybrid Mode Support
+- Update `ingredientServiceInstance.js` to support environment-based data source selection
+- Add configuration for local vs server mode
+- Enable seamless switching between embedded and server data
+
+##### Phase 3: Vector Migration
+- Move `IngredientSimilarityService` algorithms to Railway server as REST API
+- Create `VectorSearchService` for server-side vector operations
+- Maintain fallback to local similarity for offline mode
+
+### Implementation Plan
+
+#### 1. **Create Supabase Data Source** (20 min)
+```javascript
+// services/SupabaseIngredientDataSource.js
+class SupabaseIngredientDataSource {
+  async searchIngredients(query, limit) {
+    // Use Supabase vector similarity search
+    // Call Railway API for vector operations
+  }
+  
+  async batchParseIngredients(ingredientTexts) {
+    // Leverage server-side batch processing
+  }
+}
+```
+
+#### 2. **Environment Configuration** (10 min)
+```javascript
+// services/ingredientServiceInstance.js
+const dataSource = process.env.USE_SERVER_DATA === 'true' 
+  ? new SupabaseIngredientDataSource()
+  : new EmbeddedIngredientDataSource();
+```
+
+#### 3. **Railway Vector API Integration** (30 min)
+- Create Railway endpoints for vector similarity
+- Implement embedding generation for ingredients
+- Add caching layer for offline capability
+
+#### 4. **Migration Benefits**
+- **Zero Code Changes** in UI components
+- **Gradual Migration** - can run hybrid mode
+- **Offline Fallback** - maintains embedded functionality
+- **Performance Boost** - server-side vector operations
+- **Scalability** - unlimited ingredient database size
+
+### Migration Advantages
+
+#### ✅ **What's Already Perfect**
+- Service abstraction layer ready
+- Business logic separated from data access
+- Consistent API interface across all operations
+- Confidence scoring system transferable
+- Parsing logic can remain client-side or move server-side
+
+#### 🚀 **Easy Transition Path**
+1. **Day 1**: Deploy current code unchanged
+2. **Day 2**: Add Supabase data source alongside embedded
+3. **Day 3**: Switch to server mode with single config change
+4. **Day 4**: Enhanced vector search with pgvector + Railway
+
+The architecture is **migration-ready by design** - excellent foresight in the service layer abstraction!
 
 # Claude Code Development Principles for Chef-Flow Project
 
